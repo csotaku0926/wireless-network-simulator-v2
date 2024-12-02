@@ -71,16 +71,19 @@ class SatelliteBaseStation(BaseStation):
         N_blocks, r = self.compute_nsymb_SAT(desired_data_rate, rsrp)
         logging.info("N_blocks = %d - r = %f" %(N_blocks, r))
         
-        #check if there is enough bitrate
+        # check if there is enough bitrate
         if self.total_bitrate !=-1 and self.total_bitrate-self.allocated_bitrate <= (r*N_blocks):
             dr = self.total_bitrate - self.allocated_bitrate
             N_blocks, r = self.compute_nsymb_SAT(dr, rsrp)
 
-        #check if there are enough symbols
+        # check if there are enough symbols
+        # state space : user request mtx (), resource utilization
+        # dict: {'channel 1': 0~100, 'channel 2': 100~200, ...}
+        # action space : which channel turn on & off
         if self.total_symbols - self.frame_utilization <= self.tb_header + N_blocks*64 + self.guard_space:
             N_blocks = math.floor((self.total_symbols - self.frame_utilization - self.guard_space - self.tb_header)/64)
             
-            if N_blocks <= 0: #we cannot allocate neither 1 block of 64 symbols
+            if N_blocks <= 0: # we cannot allocate neither 1 block of 64 symbols
                 self.ue_allocation[ue_id] = 0
                 self.ue_bitrate_allocation[ue_id] = 0
                 return 0

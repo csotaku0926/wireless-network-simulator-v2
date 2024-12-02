@@ -125,6 +125,7 @@ class WNSEnv(gym.Env):
 
         observation = self.observe()            
         
+        # TODO : to be reomoved
         reward = 0.0
         lambda_q = 1.0
         lambda_l = 1.0

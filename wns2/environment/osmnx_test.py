@@ -102,3 +102,4 @@ if __name__ == '__main__':
 
     # now we need "area" and "pop."
     # determine pop. distribution
+    # TODO: https://stackoverflow.com/questions/23697374/calculate-polygon-area-in-planar-units-e-g-square-meters-in-shapely

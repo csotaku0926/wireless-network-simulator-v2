@@ -37,8 +37,8 @@ class SatelliteBaseStation(BaseStation):
             self.pathloss = FreeSpacePathLoss()
         self.allocated_bitrate = 0
         self.ue_allocation = {}
-        self.ue_bitrate_allocation ={}
-
+        self.ue_bitrate_allocation = {}
+        
         self.T = 10
         self.resource_utilization_array = [0] * self.T
         self.resource_utilization_counter = 0

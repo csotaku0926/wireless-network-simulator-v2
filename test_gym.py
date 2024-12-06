@@ -22,7 +22,7 @@ for i in range(n_ue):
 
 quantization = 6
 
-terr_parm =[{"pos": (500, 500, 30),
+terr_parm = [{"pos": (500, 500, 30),
     "freq": 800,
     "numerology": 1, 
     "power": 20,

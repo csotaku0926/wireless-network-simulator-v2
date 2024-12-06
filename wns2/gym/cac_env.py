@@ -19,11 +19,15 @@ class CACGymEnv(gym.Env):
     QUANTIZATION = 5 #0%, 20%, 40%, 60%, 80% 100%
 
     def init_env(self, x_lim, y_lim, terr_parm, sat_parm, n_ue, datarate):
+        """init `self.env` as Environment using inputs"""
         self.env = Environment(x_lim, y_lim, renderer = CustomRenderer())
         self.init_pos = []  # for reset method
         for i in range(0, n_ue):
             pos = (random.rand()*x_lim, random.rand()*y_lim, 1)
-            self.env.add_user(UserEquipment(self.env, i, datarate, pos, speed = 0, direction = random.randint(0, 360), _lambda_c=5, _lambda_d = 15))
+            self.env.add_user(
+                UserEquipment(
+                    self.env, i, datarate, pos, speed = 0, direction = random.randint(0, 360), _lambda_c=5, _lambda_d = 15
+                ))
             self.init_pos.append(pos)
         for i in range(len(terr_parm)):
             self.env.add_base_station(NRBaseStation(self.env, i, terr_parm[i]["pos"], terr_parm[i]["freq"], terr_parm[i]["bandwidth"], terr_parm[i]["numerology"], terr_parm[i]["max_bitrate"], terr_parm[i]["power"], terr_parm[i]["gain"], terr_parm[i]["loss"]))
@@ -46,7 +50,7 @@ class CACGymEnv(gym.Env):
             self.class_list = class_list
             class_set = set(class_list)
             self.number_of_classes = len(class_set)
-            self.observation_space = spaces.Discrete(((self.quantization+1)**self.n_ap))
+            self.observation_space = spaces.Discrete(((self.quantization+1) ** self.n_ap))
             self.init_env(x_lim, y_lim, terr_parm, sat_parm, self.n_ue, self.datarate)
             
     
@@ -69,6 +73,7 @@ class CACGymEnv(gym.Env):
         if action != 0:
             selected_bs = action - 1
             self.env.ue_by_id(self.current_ue_id).disconnect()
+            # require data rate here
             current_data_rate = self.env.ue_by_id(self.current_ue_id).connect_bs(selected_bs)
         
         # disconnect all UEs that are not wanting to connect
@@ -81,6 +86,7 @@ class CACGymEnv(gym.Env):
         dropped = False
         info = np.zeros(self.number_of_classes)
         for i in range(self.number_of_classes):
+            # class type is just for reward definition
             if i == self.class_list[self.current_ue_id]:
                 if (current_data_rate == None) or (current_data_rate < self.env.ue_by_id(ue_id).data_rate):
                     info[i] = 1

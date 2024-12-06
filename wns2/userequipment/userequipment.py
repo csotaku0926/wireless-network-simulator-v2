@@ -11,6 +11,7 @@ class UserEquipment:
    
     def __init__(self, env, ue_id, initial_data_rate, starting_position, speed = 0, direction = 0, random = False, _lambda_c = None, _lambda_d = None):
         self.ue_id = ue_id
+        # this means desired data rate
         self.data_rate = initial_data_rate
         self.current_position = starting_position
         self.env = env

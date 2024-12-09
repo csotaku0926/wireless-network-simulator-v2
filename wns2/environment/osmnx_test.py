@@ -9,18 +9,19 @@ import json
 import os
 import numpy as np
 
-from population import get_city_wikidata
+from .population import get_city_wikidata
 
 # [plot geo](https://max-coding.medium.com/getting-administrative-boundaries-from-open-street-map-osm-using-pyosmium-9f108c34f86)
 # make sure you put your own pbf data in "osm_data" folder !
 # download site: https://download.geofabrik.de/europe/ukraine.html
-OSM_FILE = "osm_data/ukraine-latest.osm.pbf"
+DIR_NAME = os.path.dirname(__file__)
+OSM_FILE = os.path.join(DIR_NAME, "osm_data/ukraine-latest.osm.pbf")
 ADMIN_LEVEL = "4"
 COUNTRY = "Ukraine"
 
 # oms data in csv format
-CSV_FILENAME = "out_oms_data_l4.csv"
-POP_CSV_FILENAME = "pop_data/ukraine_city_pop.csv"
+CSV_FILENAME = os.path.join(DIR_NAME, "out_oms_data_l4.csv")
+POP_CSV_FILENAME = os.path.join(DIR_NAME, "pop_data/ukraine_city_pop.csv")
 
 # easier to generate user in groups
 N_USER_PER_GROUP = 1000
@@ -252,13 +253,10 @@ def calc_cart_coord(lat:float, lon:float):
     # z = R *sin(lat_r)
     return (x, y)
 
-def main():
+def get_cart():
     """
     returns:
-    - boundry of OSM map
-    - dict: 
-        - key is each oblast
-        - value is user coord. list
+    - boundry of OSM map (min, max carterian coordinate on map)
     """
     # obtain osm data
     # ref: https://stackoverflow.com/questions/61122875/geopandas-how-to-read-a-csv-and-convert-to-a-geopandas-dataframe-with-polygons
@@ -276,8 +274,8 @@ def main():
     oblast_gdf = oblast_gdf.drop_duplicates(subset='name:en', keep='last') 
     
     # get population from json
-    with open("pop_data/pop_oblast_dict.json") as f:
-        pop_oblast_dict = json.load(f) 
+    # with open("pop_data/pop_oblast_dict.json") as f:
+    #     pop_oblast_dict = json.load(f) 
     # if you want to regenerate users, enable `read_pop_from_qwiki` instead
     # missing "Zaporizhia Oblast": 1638462 (from wiki 2022)  
     # read_pop_from_qwiki(oblast_gdf)
@@ -285,7 +283,8 @@ def main():
 
     # generate users in each oblast (in lat, lon)
     # users_per_oblast_dict = generate_users(oblast_gdf, pop_oblast_dict)
-    with open("pop_data/user_per_oblast.json") as f:
+    oblast_json_path = os.path.join(DIR_NAME, "pop_data/user_per_oblast.json")
+    with open(oblast_json_path) as f:
         users_per_oblast_dict = json.load(f)
 
     # get boundry of whole country
@@ -311,7 +310,8 @@ def main():
         users_cart_dict[oblast_name] = new_coords
 
     # save cart coord
-    with open("pop_data/user_cart_dict.json", "w") as f:
+    save_coord_path = os.path.join(DIR_NAME, "pop_data/user_cart_dict.json")
+    with open(save_coord_path, "w") as f:
         json.dump(users_cart_dict, f)
 
     # plot

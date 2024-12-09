@@ -8,6 +8,8 @@ import lexicographicqlearning
 import signal
 import numpy as np
 
+from wns2.environment.osmnx_test import get_cart
+
 logger = logging.getLogger()
 logger.setLevel(level=logging.WARNING)
 
@@ -143,9 +145,14 @@ time unit?
 """
 def main():
     """main function & defintion"""
+    # get cart coordinates from real-world map data
+    base_cart, max_cart = get_cart()
+
     # how big is the map
-    x_lim = 1000
-    y_lim = 600
+    x_lim = abs(base_cart[0] - max_cart[0])
+    y_lim = abs(base_cart[1] - max_cart[1])
+
+    print("map size:", x_lim, y_lim)
 
     # TODO: count the covered UE under satellite
     # how many user making request

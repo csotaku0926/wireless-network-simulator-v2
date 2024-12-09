@@ -3,7 +3,6 @@ from json import load
 from pkg_resources import load_entry_point
 from wns2.basestation.satellitebasestation import SatelliteBaseStation
 from wns2.gym.cac_env import CACGymEnv
-import numpy.random as random
 import logging
 import lexicographicqlearning
 import signal
@@ -84,34 +83,87 @@ def evaluate_model(learner, env:CACGymEnv, terr_parm:list, sat_parm:list, quanti
     print(np.mean(LL_rewards[0]))
 
 
+"""    
+- `required_data_rate`: base level of required data rate (in bps)
+- `qos_level_data_rate`: every rate of this, obtain another qos level (in bps)
 """
-Service definition
-0.4 Bursty-User Driven (BUD) traffic --> 60 ~ 1500 KB uniform distribution
-0.4 Non real-time video --> 50 Mbps
-0.075 Bursty-Application Driven (BAD) traffic
-0.075 real-time video 
-else no request
+SERVICE_CLASS = [
+    (100_000, 100_000), # BUD traffic
+    (35_000_000, 10_000_000), # Non real-time video
+    (2_000_000, 10_000_000), # BAD traffic
+    (0, 0), # No service
+]
 
-connection (table XVI) 0.1 UE / m^2
+def determine_service():
+    """
+    ### Service definition (TC2 from Table XVI)
+    - 0.4 Bursty-User Driven (BUD) traffic (web traffic model) --> 100 Kbps  (60 ~ 1500 KB uniform distribution), every 100 Kbps a Qos level
+        - e.g. if allocated 200 Kbps for a BUD traffic user, his QoS level is 2
+    - 0.4 Non real-time video                                  --> 35 Mbps (with frame rate of 24 fps), every 10 Mbps a QoS level 
+    - 0.075 Bursty-Application Driven (BAD) traffic            --> 2 Mbps, every 10 Mbps a QoS level
+    - else no request
+
+    (X) file size -- each follows FTP traffic model
+
+    returns:
+    - `class id`: id of the service class
+    """
+    prob = np.random.uniform(0, 1)
+    class_id = 0
+
+    # BUD traffic
+    if (prob < 0.4):
+        class_id = 0
+    # Non real-time video
+    elif (0.4 <= prob and prob < 0.8):
+        class_id = 1
+    # BAD traffic
+    elif (0.8 <= prob and prob < 0.875):
+        class_id = 2
+    # No service
+    else:
+        class_id = 3
+
+    return class_id
+
+"""
+TODO
 1. get users in satellite coverage
 2. pick random N users to make request, N = covered area * 0.1
 3. each picked user determine its requested service (using above prob.)
+    - each service has specific requirements : data rate 
+---
+
+power -> signal strength -> data rate 
+C = B * log(1 + SNR)
+
+connection (table XVI) 0.1 UE / m^2
 
 time unit?
 """
-
 def main():
     """main function & defintion"""
+    # how big is the map
     x_lim = 1000
     y_lim = 600
+
+    # TODO: count the covered UE under satellite
+    # how many user making request
     n_ue = 100 
+
+    # TODO: UE's positions (waiting for satellite coverage model)
+    # ue_positions = {0:(x_0, y_0), 1:(x_1, y_1), ...}
+
+    # their requested services
     class_list = []
-    for i in range(n_ue):
-        class_list.append(i % 3)
+    for _ in range(n_ue):
+        class_id = determine_service()
+        class_list.append(class_id)
 
     quantization = 6
 
-    terr_parm = [{"pos": (500, 500, 30),
+    # we ignore terrestrial bs
+    '''terr_parm = [{"pos": (500, 500, 30),
         "freq": 800,
         "numerology": 1, 
         "power": 20,
@@ -151,13 +203,28 @@ def main():
         "loss": 3,
         "bandwidth": 25,
         "max_bitrate": 1000}
-    ] 
+    ] '''
+    terr_parm = []
 
-    sat_parm = [{"pos": (250, 500, 35786000)}]
+    # satellite BS parameters
+    sat_parm = [{"pos": (250, 500, 786000)}, {"pos": (50, 200, 35786000)}]
     
-    # define RL stuff
-    env = CACGymEnv(x_lim, y_lim, class_list, terr_parm, sat_parm, datarate = 50, quantization=quantization)
-    learner = lexicographicqlearning.LexicographicQTableLearner(env, "CAC_Env", [0.075, 0.10, 0.15])
+    # define environment
+    env = CACGymEnv(x_lim, y_lim, class_list, terr_parm, sat_parm, datarate = 50, quantization=quantization, service_class=SERVICE_CLASS)
+    ue_0 = env.env.ue_list[0]
+    # power action goes here
+    action = 1
+    env.env.bs_list[0].set_power_action(action)
+    actual_dr = ue_0.connect_bs(0)
+    print("set power to 1:", actual_dr)
+
+    action = 2
+    env.env.bs_list[0].set_power_action(action)
+    actual_dr = ue_0.connect_bs(0)
+    print("set power to 2:", actual_dr)
+
+    # define my learner
+    # learner = lexicographicqlearning.LexicographicQTableLearner(env, "CAC_Env", [0.075, 0.10, 0.15])
 
 if __name__ == '__main__':
     main()

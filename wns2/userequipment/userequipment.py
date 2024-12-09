@@ -26,6 +26,7 @@ class UserEquipment:
 
         self.sampling_time = self.env.get_sampling_time()
 
+        # dict: key -- which BS connecting to this UE; value -- allocated data rate from each BS
         self.bs_data_rate_allocation = {}
 
     def get_position(self):

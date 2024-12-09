@@ -7,13 +7,22 @@ import math
 
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.DEBUG)
 
+"""
+Reward function
 
+func(state):
+output EIRP action
+"""
 class SatelliteBaseStation(BaseStation):
     def __init__(self, env, bs_id, position, max_data_rate = None, pathloss = None):
         self.bs_type = "sat"
         self.carrier_bandwidth = 220 # carrier bandwidth [MHz]
         self.carrier_frequency = 28.4 # frequency [Hz] = 28.4GHz
-        self.sat_eirp = 99 #62 #45.1  # satellite effective isotropic radiated power [dBW]
+        
+        self.base_sat_eirp = 33 # lowest power of satellite
+        self.power_action = 1 # power allocation action
+        self.sat_eirp = self.base_sat_eirp * self.power_action #99 #62 #45.1  # satellite effective isotropic radiated power [dBW] 
+
         #self.path_loss = 188.4  # path loss [dB]
         self.atm_loss = 0.1  # mean atmospheric loss [dB]
         self.ut_G_T = -9.7  # user terminal G/T [dB/K]
@@ -46,6 +55,14 @@ class SatelliteBaseStation(BaseStation):
         self.load_history = []
         self.data_rate_history = []
     
+    def set_power_action(self, power_action:int):
+        """
+        added `power_control` as desired eirp actions
+        action space: 1 (low power), 2 (medium power), 3 (full power)
+        """
+        self.power_action = power_action
+        self.sat_eirp = self.power_action * self.base_sat_eirp
+
     def get_position(self):
         return self.position
     
@@ -72,14 +89,12 @@ class SatelliteBaseStation(BaseStation):
         logging.info("N_blocks = %d - r = %f" %(N_blocks, r))
         
         # check if there is enough bitrate
-        if self.total_bitrate !=-1 and self.total_bitrate-self.allocated_bitrate <= (r*N_blocks):
+        # rsrp = eirp - path_loss
+        if self.total_bitrate != -1 and self.total_bitrate - self.allocated_bitrate <= (r*N_blocks):
             dr = self.total_bitrate - self.allocated_bitrate
             N_blocks, r = self.compute_nsymb_SAT(dr, rsrp)
 
         # check if there are enough symbols
-        # state space : user request mtx (), resource utilization
-        # dict: {'channel 1': 0~100, 'channel 2': 100~200, ...}
-        # action space : which channel turn on & off
         if self.total_symbols - self.frame_utilization <= self.tb_header + N_blocks*64 + self.guard_space:
             N_blocks = math.floor((self.total_symbols - self.frame_utilization - self.guard_space - self.tb_header)/64)
             
@@ -103,7 +118,9 @@ class SatelliteBaseStation(BaseStation):
             self.allocated_bitrate -= self.ue_bitrate_allocation[ue_id]
             self.ue_bitrate_allocation[ue_id] = (r*N_blocks)
             self.allocated_bitrate += (r*N_blocks)
-        return (r*N_blocks) #we want a data rate in Mbps, not in bps
+
+        # return allocated data rate (Mbps)
+        return (r*N_blocks)
     
     def disconnect(self, ue_id):
         self.frame_utilization -= self.ue_allocation[ue_id]

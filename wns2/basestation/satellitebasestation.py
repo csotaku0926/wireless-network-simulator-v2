@@ -143,7 +143,7 @@ class SatelliteBaseStation(BaseStation):
         # print(f"Latitude: {latitude}, Longitude: {longitude}")
         # print(f"Coverage Center: x={coverage_x}, y={coverage_y}, Radius: {coverage_radius}")
         # print(f"Connected UEs: {list(self.connected_ues.keys())}")
-        print("The number of UE in every step: ", len(self.connected_ues))
+        # print("The number of UE in every step: ", len(self.connected_ues))
     ##############################################################################
 
     def set_power_action(self, power_action:int):

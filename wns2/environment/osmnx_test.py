@@ -249,7 +249,8 @@ def calc_cart_coord(lat:float, lon:float):
     lat_r = np.radians(lat)
     lon_r = np.radians(lon)
     x = R * np.cos(lat_r) * np.cos(lon_r)
-    y = R * np.cos(lat_r) * np.sin(lon_r)
+    # y = R * np.cos(lat_r) * np.sin(lon_r)
+    y = R * np.cos(lon_r) * np.sin(lat_r)
     # z = R *sin(lat_r)
     return (x, y)
 
@@ -276,7 +277,6 @@ def get_cart():
     # get population from json
     # with open("pop_data/pop_oblast_dict.json") as f:
     #     pop_oblast_dict = json.load(f) 
-
     # if you want to regenerate users, enable `read_pop_from_qwiki` instead
     # missing "Zaporizhia Oblast": 1638462 (from wiki 2022)  
     # read_pop_from_qwiki(oblast_gdf)
@@ -303,6 +303,10 @@ def get_cart():
         new_coords = []
 
         for coord in user_coords:
+            # new_cart = calc_cart_coord(coord[0], coord[1])
+            # new_x = new_cart[0] - base_cart[0]
+            # new_y = new_cart[1] - base_cart[1]
+            # new_coords.append((new_x, new_y))
             new_cart = calc_cart_coord(coord[0], coord[1])
             # new_x = new_cart[0] - base_cart[0]
             # new_y = new_cart[1] - base_cart[1]

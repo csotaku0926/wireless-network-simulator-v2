@@ -214,7 +214,15 @@ def main():
     terr_parm = []
 
     # satellite BS parameters
-    sat_parm = [{"pos": (250, 500, 786000)}]
+    # sat_parm = [{"pos": (250, 500, 786000)}, {"pos": (50, 200, 35786000)}]
+    sat_parm = [
+    {
+        "pos": (6971000, 44, 33), # (R+h, theta, phi)
+        "altitude": 600000,       # 600 km
+        "angular_velocity": (0.0001, 0.0001)  # Reasonable angular velocity
+        # "min_elevation_angle": 10,  
+    }
+]
     
     # define environment
     env = CACGymEnv(x_lim, y_lim, class_list, terr_parm, sat_parm, datarate = 50, quantization=quantization, service_class=SERVICE_CLASS)

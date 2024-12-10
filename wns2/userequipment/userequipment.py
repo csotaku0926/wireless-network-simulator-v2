@@ -193,6 +193,7 @@ class UserEquipment:
         return
     
     def connect_bs(self, bs):
+        # when connect to BS, measure RSRP
         rsrp = self.measure_rsrp()
         if len(rsrp) == 0:
             return None

@@ -36,7 +36,7 @@ class SatelliteBaseStation(BaseStation):
         self.guard_space = 64  # fixed [symbols]
         self.total_users = 0
         self.frame_duration = 2 # lenght of the frame in milliseconds
-        self.total_symbols = (self.frame_length - 288*2 - 64*2)#39104 - 288*2 - 64*2 #(self.frame_length - 288*2 - 64*2) # in a frame there are 2 reference burst made of 288 symbols each, with a guard time of 64 symbols between them and between any other burst
+        self.total_symbols = (self.frame_length - 288*2 - 64*2) #(self.frame_length - 288*2 - 64*2) # in a frame there are 2 reference burst made of 288 symbols each, with a guard time of 64 symbols between them and between any other burst
         self.frame_utilization = 0  # allocated resources
         if max_data_rate != None:
             self.total_bitrate = max_data_rate
@@ -86,6 +86,7 @@ class SatelliteBaseStation(BaseStation):
         #IMPORTANT: there must always be a guard space to be added to each allocation. This guard space is included  
         # in the frame utilization but not in the ue_allocation dictionary
         N_blocks, r = self.compute_nsymb_SAT(desired_data_rate, rsrp)
+        print("n blocks:", N_blocks)
         logging.info("N_blocks = %d - r = %f" %(N_blocks, r))
         
         # check if there is enough bitrate
@@ -94,10 +95,9 @@ class SatelliteBaseStation(BaseStation):
             dr = self.total_bitrate - self.allocated_bitrate
             N_blocks, r = self.compute_nsymb_SAT(dr, rsrp)
 
-        # check if there are enough symbols
+        # check if required symbols more than enough
         if self.total_symbols - self.frame_utilization <= self.tb_header + N_blocks*64 + self.guard_space:
             N_blocks = math.floor((self.total_symbols - self.frame_utilization - self.guard_space - self.tb_header)/64)
-            
             if N_blocks <= 0: # we cannot allocate neither 1 block of 64 symbols
                 self.ue_allocation[ue_id] = 0
                 self.ue_bitrate_allocation[ue_id] = 0
@@ -120,6 +120,8 @@ class SatelliteBaseStation(BaseStation):
             self.allocated_bitrate += (r*N_blocks)
 
         # return allocated data rate (Mbps)
+        print("N block:", N_blocks)
+        print("frame allocation:", self.ue_allocation[ue_id])
         return (r*N_blocks)
     
     def disconnect(self, ue_id):

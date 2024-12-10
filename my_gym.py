@@ -152,7 +152,7 @@ def main():
     x_lim = abs(base_cart[0] - max_cart[0])
     y_lim = abs(base_cart[1] - max_cart[1])
 
-    print("map size:", x_lim, y_lim)
+    print("map size:", x_lim, y_lim, "in meters")
 
     # TODO: count the covered UE under satellite
     # how many user making request
@@ -214,7 +214,7 @@ def main():
     terr_parm = []
 
     # satellite BS parameters
-    sat_parm = [{"pos": (250, 500, 786000)}, {"pos": (50, 200, 35786000)}]
+    sat_parm = [{"pos": (250, 500, 786000)}]
     
     # define environment
     env = CACGymEnv(x_lim, y_lim, class_list, terr_parm, sat_parm, datarate = 50, quantization=quantization, service_class=SERVICE_CLASS)
@@ -223,12 +223,12 @@ def main():
     action = 1
     env.env.bs_list[0].set_power_action(action)
     actual_dr = ue_0.connect_bs(0)
-    print("set power to 1:", actual_dr)
+    print(f"set power to {action}:", actual_dr)
 
     action = 2
     env.env.bs_list[0].set_power_action(action)
     actual_dr = ue_0.connect_bs(0)
-    print("set power to 2:", actual_dr)
+    print(f"set power to {action}:", actual_dr)
 
     # define my learner
     # learner = lexicographicqlearning.LexicographicQTableLearner(env, "CAC_Env", [0.075, 0.10, 0.15])

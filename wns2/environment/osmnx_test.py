@@ -276,6 +276,7 @@ def get_cart():
     # get population from json
     # with open("pop_data/pop_oblast_dict.json") as f:
     #     pop_oblast_dict = json.load(f) 
+
     # if you want to regenerate users, enable `read_pop_from_qwiki` instead
     # missing "Zaporizhia Oblast": 1638462 (from wiki 2022)  
     # read_pop_from_qwiki(oblast_gdf)
@@ -303,9 +304,9 @@ def get_cart():
 
         for coord in user_coords:
             new_cart = calc_cart_coord(coord[0], coord[1])
-            new_x = new_cart[0] - base_cart[0]
-            new_y = new_cart[1] - base_cart[1]
-            new_coords.append((new_x, new_y))
+            # new_x = new_cart[0] - base_cart[0]
+            # new_y = new_cart[1] - base_cart[1]
+            new_coords.append((new_cart[0], new_cart[1]))
 
         users_cart_dict[oblast_name] = new_coords
 

@@ -2,160 +2,175 @@ import gym
 from gym import spaces
 from wns2.basestation.nrbasestation import NRBaseStation
 from wns2.basestation.satellitebasestation import SatelliteBaseStation
-from wns2.userequipment.multipath_userequipment import MultiPathUserEquipment
+from wns2.userequipment.userequipment import UserEquipment
 from wns2.environment.environment import Environment
 from wns2.renderer.renderer import CustomRenderer
 import numpy.random as random
 import logging
 import numpy as np
+import copy
 import math
 
 
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.DEBUG)
 
-class WNSEnv(gym.Env):
+class CACGymEnv(gym.Env):
     metadata = {'render.modes': ['human']}
+    QUANTIZATION = 5 #0%, 20%, 40%, 60%, 80% 100%
 
-    def init_env(self, x_lim, y_lim, terr_parm, sat_parm, n_ue):
+    def init_env(self, x_lim, y_lim, terr_parm, sat_parm, n_ue, datarate, service_class=None):
+        """init `self.env` as Environment using inputs"""
         self.env = Environment(x_lim, y_lim, renderer = CustomRenderer())
         self.init_pos = []  # for reset method
+        
+        # random determine user position
         for i in range(0, n_ue):
             pos = (random.rand()*x_lim, random.rand()*y_lim, 1)
-            self.env.add_user(MultiPathUserEquipment(self.env, i, 25, pos, speed = 0, direction = random.randint(0, 360), _lambda_c=5, _lambda_d = 15))
+            
+            service_datarate = datarate
+            if (service_class is not None):
+                class_id = self.class_list[i]
+                service_datarate = service_class[class_id][0] # a tuple containing base DR and level DR
+            self.datarate = service_datarate
+
+            self.env.add_user(
+                UserEquipment(
+                    self.env, i, service_datarate, pos, speed = 0, direction = random.randint(0, 360), _lambda_c=5, _lambda_d = 15
+                ))
             self.init_pos.append(pos)
+
         for i in range(len(terr_parm)):
             self.env.add_base_station(NRBaseStation(self.env, i, terr_parm[i]["pos"], terr_parm[i]["freq"], terr_parm[i]["bandwidth"], terr_parm[i]["numerology"], terr_parm[i]["max_bitrate"], terr_parm[i]["power"], terr_parm[i]["gain"], terr_parm[i]["loss"]))
         for i in range(len(sat_parm)):
-            self.env.add_base_station(SatelliteBaseStation(self.env, len(terr_parm)+i, sat_parm[i]["pos"]))
-
-    def __init__(self, x_lim, y_lim, n_ue, terr_parm, sat_parm, queue_parm, load_parm, max_steps):
-        super(WNSEnv, self).__init__()
-        # --------terr_parm example:------------
-        # {"pos": (500, 500, 30),
-        # "freq": 800,
-        # "numerology": 1, 
-        # "power": 20,
-        # "gain": 16,
-        # "loss": 3,
-        # "bandwidth": 20,
-        # "max_bitrate": 1000}
-        # 
-        # --------sat_parm example:------------
-        # {"pos": (250, 500, 35786000)}
-        # --------queue_parm example:------------
-        # [q0, q1]
-        # --------queue_parm example:------------
-        # [l0, l1, l2]
-        self.len_p = len(terr_parm)+len(sat_parm)
-        self.n_ue = n_ue
-        self.queue_parm = queue_parm
-        self.load_parm = load_parm
-        # Define action and observation space
-        # They must be gym.spaces objects
-        # Example when using discrete actions:
-        self.action_space = spaces.MultiDiscrete([2**self.len_p for _ in range(self.n_ue)]) 
-        # Example for using image as input:
-        self.observation_space = spaces.MultiDiscrete([3 for _ in range(self.n_ue)]+[4 for _ in range(self.len_p)])
-        self.steps = max_steps
-        self.max_steps = max_steps
-        self.terr_param = terr_parm
-        self.sat_param = sat_parm
-
-        self.init_env(x_lim, y_lim, terr_parm, sat_parm, n_ue)
-
-    def observe(self):
-        ue_obs = []
-        for i in range(self.n_ue):
-            q = self.env.ue_by_id(i).get_queue()
-            if q < self.queue_parm[0]:
-                ue_obs.append(0)
-            elif q < self.queue_parm[1]:
-                ue_obs.append(1)
-            else:
-                ue_obs.append(2)
+            self.env.add_base_station(SatelliteBaseStation(
+            self.env,
+            len(terr_parm) + i,
+            sat_parm[i]["pos"],
+            altitude=sat_parm[i].get("altitude", 1200),  
+            angular_velocity=sat_parm[i].get("angular_velocity", (0, 0))  
+        ))
         
+        self.terr_parm = terr_parm
+        self.sat_parm = sat_parm
+        
+
+    def __init__(self, x_lim, y_lim, class_list, terr_parm, sat_parm, datarate = 25, quantization = QUANTIZATION, service_class=None):
+            """
+            Add `service_class` defined in `my_gym.py`
+            """
+            super(CACGymEnv, self).__init__()
+            self.n_ap = len(terr_parm)+len(sat_parm)
+            self.action_space = spaces.Discrete(self.n_ap+1)
+            #self.observation_space = spaces.MultiDiscrete([self.CLASSES_OF_SERVICE]+[self.QUANTIZATION+1 for _ in range(self.n_ap)])
+            self.n_ue = len(class_list)
+            self.x_lim = x_lim
+            self.y_lim = y_lim
+            self.quantization = quantization
+            self.datarate = datarate
+            self.class_list = class_list
+            class_set = set(class_list)
+            self.number_of_classes = len(class_set)
+            self.observation_space = spaces.Discrete(((self.quantization+1) ** self.n_ap))
+            self.init_env(x_lim, y_lim, terr_parm, sat_parm, self.n_ue, datarate, service_class)
+            
+    
+    def observe(self, ue_id):
         bs_obs = []
-        for j in range(self.len_p):
+        for j in range(self.n_ap):
             l = self.env.bs_by_id(j).get_usage_ratio()
-            if l < self.load_parm[0]:
-                bs_obs.append(0)
-            elif l < self.load_parm[1]:
-                bs_obs.append(1)
-            elif l < self.load_parm[2]:
-                bs_obs.append(2)
-            else:
-                bs_obs.append(3)
-        observation = np.array(ue_obs+bs_obs)
+            bs_obs.append(math.floor(self.quantization * l))
+        observation_arr = np.array(bs_obs)
+        #print(observation_arr)
+        observation = 0
+        # convert observation_arr (represented as mixed-radix number) to decimal number
+        for i in range(len(observation_arr)):
+            observation = observation * (self.quantization+1) + observation_arr[i]
         return observation
 
-    
     def step(self, action):
-        # action represents which APs the UEs have to connect to
+        # actuate the action on self.current_ue_id
+        current_data_rate = None
+        if action != 0:
+            selected_bs = action - 1
+            self.env.ue_by_id(self.current_ue_id).disconnect()
+            # request data rate here
+            current_data_rate = self.env.ue_by_id(self.current_ue_id).connect_bs(selected_bs)
         
-        connection_matrix = []
-        for i in range(self.n_ue):
-            connection_matrix.append([0] * self.len_p)
-            for j in range(self.len_p):
-                if (action[i] >> j) & 1 == 1:
-                    connection_matrix[i][j] = 1
-        for i in range(self.n_ue):
-            ue = self.env.ue_by_id(i)
-            if ue.get_current_input_data_rate() == 0:
-                continue
-            connection_list = []
-            for bs in range(self.len_p):
-                if connection_matrix[i][bs] == 1:
-                    connection_list.append(bs)
-            if len(connection_list) == 0:
-                continue
-            for bs in range(self.len_p):
-                if connection_matrix[i][bs] == 1:
-                    ue.output_data_rate[bs] = ue.get_current_input_data_rate()/len(connection_list)
-            ue.connect_bs(connection_list)
-        
-        self.env.step()
-        
+        # disconnect all UEs that are not wanting to connect
+        for ue_id in range(self.n_ue):
+            if ue_id not in self.env.connection_advertisement:
+                self.env.ue_by_id(ue_id).disconnect()
 
         done = False
-        if self.steps <= 0:
-            done = True
-        self.steps -= 1
-
-        info = None
-
-        observation = self.observe()            
+        # compute reward for all the Q tables
+        dropped = False
+        info = np.zeros(self.number_of_classes)
+        for i in range(self.number_of_classes):
+            # class type is just for reward definition
+            if i == self.class_list[self.current_ue_id]:
+                if (current_data_rate == None) or (current_data_rate < self.env.ue_by_id(ue_id).data_rate):
+                    info[i] = 1
+                    dropped = True
+                else:
+                    info[i] = 0
+            else:
+                info[i] = -1
+        if dropped:
+            reward = 1
+        else:
+            reward = 0
         
-        # TODO : to be reomoved
-        reward = 0.0
-        lambda_q = 1.0
-        lambda_l = 1.0
-        delta_q = self.n_ue*lambda_q
-        delta_l = self.len_p*lambda_l
+        # select next ue that will be scheduled (if all the UEs are scheduled yet, fast-forward steps in the environment)
+        if len(self.advertised_connections) > 0:
+            '''for ue_id in range(self.n_ue):
+                self.env.ue_by_id(ue_id).last_time -= 1'''
+            # make the env go 1 substep forward
+            self.env.step(substep = True)
+        else:
+            while len(self.advertised_connections) == 0:
+                self.env.step()
+                self.advertised_connections = copy.deepcopy(self.env.connection_advertisement)
+                # if a UE is already connected to an AP, skip it and focus only on the unconnected UEs
+                for ue_id in self.advertised_connections:
+                    if self.env.ue_by_id(ue_id).get_current_bs() != None:
+                        self.advertised_connections.remove(ue_id)
         
-        ue_obs = observation[0:self.n_ue]
-        bs_obs = observation[self.n_ue:]
-        for i in range(self.n_ue):
-            reward -= lambda_q*math.exp(ue_obs[i])
-        reward += delta_q
-        for j in range(self.len_p):
-            reward -= lambda_l*math.exp(bs_obs[j])
-        reward += delta_l
+        next_ue_id = random.choice(self.advertised_connections)
+        self.advertised_connections.remove(next_ue_id)
+        '''next_ue = self.env.ue_by_id(next_ue_id)
+        # if next_ue is already connected to an AP, skip it and focus only on the unconnected UEs
+        while next_ue.get_current_bs() != None:
+            while len(self.advertised_connections) == 0:
+                self.env.step()
+                self.advertised_connections = copy.deepcopy(self.env.connection_advertisement)
+            next_ue_id = random.choice(self.advertised_connections)
+            self.advertised_connections.remove(next_ue_id)
+            next_ue = self.env.ue_by_id(next_ue_id)'''
 
-        for i in range(self.n_ue):
-            self.env.ue_by_id(i).disconnect_all()
-
+        
+        self.current_ue_id = next_ue_id
+        # after the step(), the user that have to appear in the next state is the next user, not the current user
+        observation = self.observe(next_ue_id)
+                
         return observation, reward, done, info
 
     def reset(self):
-        x_lim = self.env.get_x_limit()
-        y_lim = self.env.get_y_limit()
-
-        self.init_env(x_lim, y_lim, self.terr_param, self.sat_param, self.n_ue)
-        observation = self.observe()
-        return observation  # reward, done, info can't be included
+        self.init_env(self.x_lim, self.y_lim, self.terr_parm, self.sat_parm, self.n_ue, self.datarate)
+        self.env.step()
+        self.advertised_connections = copy.deepcopy(self.env.connection_advertisement)
+        # step until at least one UE wants to connect
+        while len(self.advertised_connections) == 0:
+            self.env.step()
+            self.advertised_connections = copy.deepcopy(self.env.connection_advertisement)
+        ue_id = random.choice(self.advertised_connections)
+        self.current_ue_id = ue_id
+        # go back 1 time instant, so at the next step() the connection_advertisement list will not change
+        observation = self.observe(ue_id)
+        self.advertised_connections.remove(ue_id)
+        return observation
 
     def render(self, mode='human'):
         return self.env.render()
+    
     def close (self):
         return
- 

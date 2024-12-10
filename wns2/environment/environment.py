@@ -62,8 +62,15 @@ class Environment:
         # nor the UEs should update their internal timers to decide if it is time to connect/disconnect
         if not substep:
             self.connection_advertisement.clear()
+
+        for bs_id, bs in self.bs_list.items():
+            if hasattr(bs, 'bs_type') and bs.bs_type == "sat":
+                bs.update_position()
+                # print(f"Environment: Satellite {bs_id} Position: {bs.get_position()}")
+
         for ue in self.ue_list:
             self.ue_list[ue].step(substep)
+
         for bs in self.bs_list:
             self.bs_list[bs].step()
         '''       

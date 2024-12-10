@@ -4,6 +4,7 @@ from wns2.pathloss.freespace import FreeSpacePathLoss
 from scipy import constants
 import logging
 import math
+import json
 
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.DEBUG)
 
@@ -14,7 +15,7 @@ func(state):
 output EIRP action
 """
 class SatelliteBaseStation(BaseStation):
-    def __init__(self, env, bs_id, position, max_data_rate = None, pathloss = None):
+    def __init__(self, env, bs_id, position, altitude=600000, angular_velocity=(0, 0), max_data_rate = None, pathloss = None, **kwargs):
         self.bs_type = "sat"
         self.carrier_bandwidth = 220 # carrier bandwidth [MHz]
         self.carrier_frequency = 28.4 # frequency [Hz] = 28.4GHz
@@ -28,7 +29,17 @@ class SatelliteBaseStation(BaseStation):
         self.ut_G_T = -9.7  # user terminal G/T [dB/K]
 
         self.bs_id = bs_id
+
         self.position = position
+
+        ##############################################################################
+        self.radius_earth = 6371000 # radius of the earth in km
+        self.altitude = altitude # altitude of the satellite in km
+        # self.spherical_coords = (self.radius_earth + self.altitude, 0, 0)
+        self.angular_velocity = angular_velocity
+        self.min_elevation_angle = kwargs.get("min_elevation_angle", 10) # Degrees
+        ##############################################################################
+
         self.env = env
         self.frame_length = 120832  # [120832 symbols]
         self.rb_length = 288  # reference burst length, fixed [symbols]
@@ -54,7 +65,87 @@ class SatelliteBaseStation(BaseStation):
 
         self.load_history = []
         self.data_rate_history = []
+
+        self.connected_ues = {}
     
+    ##############################################################################
+    def update_position(self):
+        """
+        Update the position of the satellite using spherical coordinates.
+        """
+        with open("C:/Users/Morrie0601/wireless-network-simulator-v2/wns2/environment/pop_data/user_cart_dict.json", 'r') as file:
+            ue_data = json.load(file)
+
+        # Combine all UEs from all regions into a single dictionary ##########
+        ue_positions = {}
+        count = 0
+        for region, ue_list in ue_data.items():
+            for i, ue_pos in enumerate(ue_list):
+                ue_id = f"{region}_{i}"  # Create a unique UE ID
+                ue_id = count
+                ue_positions[ue_id] = ue_pos
+                count += 1
+        ######################################################################
+
+        h = self.altitude
+        r, theta, phi = self.position
+        dtheta, dphi = self.angular_velocity
+
+        # half cone angle between covered area and the Earth's core
+        psi = math.acos(h / (h + self.radius_earth) * math.cos(math.radians(self.min_elevation_angle))) - math.radians(self.min_elevation_angle)
+        
+        # the coverage area
+        Area = 2 * math.pi * (r) ** 2 * (1 - math.cos(math.radians(psi)))
+        coverage_radius = math.sqrt(Area / math.pi)
+        
+        
+        time_step = self.env.get_sampling_time()
+        # self.env.get_sampling_time()
+
+        # Update spherical coordinates
+        theta = (theta + dtheta * time_step) 
+        phi   = (phi   + dphi   * time_step) 
+
+        # Convert back to Cartesian coordinates for position
+        # x = r * math.sin(theta) * math.cos(phi)
+        # y = r * math.sin(theta) * math.sin(phi)
+        # z = 0  # Coverage area projected on Earth's surface
+
+        self.position = (r, theta, phi)
+
+        latitude = 90 - theta  # Convert theta to latitude
+        longitude = phi      # Convert phi to longitude
+        if longitude > 180:
+            longitude -= 360  # Normalize longitude to range [-180, 180]
+
+        # Compute the coverage center on Earth's surface (Cartesian projection)
+        # coverage_x = self.radius_earth * math.sin(math.radians(theta)) * math.cos(math.radians(phi))
+        # coverage_y = self.radius_earth * math.sin(math.radians(theta)) * math.sin(math.radians(phi))
+        coverage_x = self.radius_earth * math.cos(math.radians(latitude)) * math.cos(math.radians(longitude))
+        coverage_y = self.radius_earth * math.cos(math.radians(latitude)) * math.sin(math.radians(longitude))
+
+        # Store the coverage center and radius
+        self.initial_coverage_center = (coverage_x, coverage_y)
+        self.coverage_radius = coverage_radius
+
+        # Reset connected UEs
+        self.connected_ues = {}
+        # Determine which UEs are within the coverage radius
+        for ue_id, ue_pos in ue_positions.items():
+            ue_x, ue_y = ue_pos
+            distance = math.sqrt((ue_x - coverage_x) ** 2 + (ue_y - coverage_y) ** 2)
+            if distance <= coverage_radius:
+                self.connected_ues[ue_id] = ue_pos
+        
+        # Debug log
+        # print(f"Updated Satellite Position (Spherical): r={r}, theta={theta}, phi={phi}")
+        # print(math.sin(math.radians(theta)), math.cos(math.radians(phi)))
+        # print(f"Latitude: {latitude}, Longitude: {longitude}")
+        # print(f"Coverage Center: x={coverage_x}, y={coverage_y}, Radius: {coverage_radius}")
+        # print(f"Connected UEs: {list(self.connected_ues.keys())}")
+        print("The number of UE in every step: ", len(self.connected_ues))
+    ##############################################################################
+
     def set_power_action(self, power_action:int):
         """
         added `power_control` as desired eirp actions

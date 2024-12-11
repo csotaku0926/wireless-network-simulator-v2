@@ -31,6 +31,7 @@ class CACGymEnv(gym.Env):
             if (service_class is not None):
                 class_id = self.class_list[i]
                 service_datarate = service_class[class_id][0] # a tuple containing base DR and level DR
+            self.datarate = service_datarate
 
             self.env.add_user(
                 UserEquipment(
@@ -41,7 +42,13 @@ class CACGymEnv(gym.Env):
         for i in range(len(terr_parm)):
             self.env.add_base_station(NRBaseStation(self.env, i, terr_parm[i]["pos"], terr_parm[i]["freq"], terr_parm[i]["bandwidth"], terr_parm[i]["numerology"], terr_parm[i]["max_bitrate"], terr_parm[i]["power"], terr_parm[i]["gain"], terr_parm[i]["loss"]))
         for i in range(len(sat_parm)):
-            self.env.add_base_station(SatelliteBaseStation(self.env, len(terr_parm) + i, sat_parm[i]["pos"]))
+            self.env.add_base_station(SatelliteBaseStation(
+            self.env,
+            len(terr_parm) + i,
+            sat_parm[i]["pos"],
+            altitude=sat_parm[i].get("altitude", 1200),  
+            angular_velocity=sat_parm[i].get("angular_velocity", (0, 0))  
+        ))
         
         self.terr_parm = terr_parm
         self.sat_parm = sat_parm
@@ -59,6 +66,7 @@ class CACGymEnv(gym.Env):
             self.x_lim = x_lim
             self.y_lim = y_lim
             self.quantization = quantization
+            self.datarate = datarate
             self.class_list = class_list
             class_set = set(class_list)
             self.number_of_classes = len(class_set)

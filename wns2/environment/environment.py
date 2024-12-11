@@ -17,6 +17,7 @@ class Environment:
         self.h = h
         self.l = l
         self.ue_list = {}
+        self.class_list = {}
         self.connection_advertisement = []
         self.bs_list = {}
         self.sampling_time = sampling_time # in seconds
@@ -67,7 +68,7 @@ class Environment:
         if ue_id in self.ue_list:
             if self.ue_list[ue_id].get_current_bs() != None:
                 bs = self.ue_list[ue_id].get_current_bs()
-                self.ue_list[ue_id].disconnect(bs)
+                self.ue_list[ue_id].disconnect()
             # del self.ue_list[ue_id]
 
     def add_base_station(self, bs):
@@ -133,9 +134,11 @@ class Environment:
         for ue in self.ue_list:
             self.remove_user(ue)
         self.ue_list = {}
+        self.class_list = {}
 
         for new_ue in connected_ue:
             class_id = self.determine_service()
+            self.class_list[new_ue] = class_id
             service_datarate = self.service_class[class_id][0]
 
             self.add_user(

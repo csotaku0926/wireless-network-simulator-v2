@@ -153,12 +153,14 @@ class CACGymEnv(gym.Env):
         # compute drop amount
         for ue in ue_allocated_bitrates:
             dr_ue = ue_allocated_bitrates[ue]
-            if (dr_ue == None) or (dr_ue < ue.data_rate):
+            dr_desired_ue = self.env.ue_by_id(ue).data_rate
+            if (dr_ue == None) or (dr_ue < dr_desired_ue):
                 self.n_drop += 1
             else:
-                ue_class = self.class_list[ue]
+                ue_class = self.env.class_list[ue]
                 dr_level = self.service_class[ue_class][1]
-                self.qos_bonus += (ue.data_rate - dr_ue) // dr_level
+                # extra reward from more data rate
+                self.qos_bonus += (dr_desired_ue - dr_ue) // (dr_level + 1)
 
         reward = self.a1 * (self.n_drop // self.n_step) + (1 - self.a1) * bs_j.get_power()
         reward *= -1
@@ -182,11 +184,15 @@ class CACGymEnv(gym.Env):
                     self.advertised_connections.remove(ue_id)
         
         # random pick next connecting users
-        next_ue_ids = random.sample(self.advertised_connections, self.n_next_connecting_ue)
+        if (self.n_next_connecting_ue <= len(self.advertised_connections)):
+            next_ue_ids = random.sample(self.advertised_connections, self.n_next_connecting_ue)
+        else:
+            next_ue_ids = self.advertised_connections
+
         for ue in next_ue_ids:
             self.advertised_connections.remove(ue)
+            self.env.ue_by_id(ue).connect_bs(select_bs)
         
-
         # set to next power level
         bs_j.set_power_action(action)
 

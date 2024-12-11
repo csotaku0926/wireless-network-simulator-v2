@@ -154,7 +154,7 @@ class SatelliteBaseStation(BaseStation):
             ue_x, ue_y = ue_pos
             distance = math.sqrt((ue_x - coverage_x) ** 2 + (ue_y - coverage_y) ** 2)
             if distance <= coverage_radius:
-                self.connected_ues[ue_id] = ue_pos
+                self.connected_ues[ue_id] = (ue_x, ue_y, 0)
         
         # Debug log
         # print(f"Updated Satellite Position (Spherical): r={r}, theta={theta}, phi={phi}")

@@ -5,6 +5,7 @@ from scipy import constants
 import logging
 import math
 import json
+from wns2.environment.osmnx_test import get_cart
 
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.DEBUG)
 
@@ -73,6 +74,15 @@ class SatelliteBaseStation(BaseStation):
         """
         Update the position of the satellite using spherical coordinates.
         """
+        base_cart, max_cart = get_cart()
+
+        # how big is the map
+        x_lim = abs(base_cart[0] - max_cart[0])
+        y_lim = abs(base_cart[1] - max_cart[1])
+        # print("base_cart:", base_cart)
+        # print("max_cart:", max_cart)
+        # print("map size:", x_lim, y_lim)
+
         with open("C:/Users/Morrie0601/wireless-network-simulator-v2/wns2/environment/pop_data/user_cart_dict.json", 'r') as file:
             ue_data = json.load(file)
 
@@ -103,8 +113,8 @@ class SatelliteBaseStation(BaseStation):
         # self.env.get_sampling_time()
 
         # Update spherical coordinates
-        theta = (theta + dtheta * time_step) 
-        phi   = (phi   + dphi   * time_step) 
+        theta = (theta + dtheta * time_step)
+        phi   = (phi   + dphi   * time_step)
 
         # Convert back to Cartesian coordinates for position
         # x = r * math.sin(theta) * math.cos(phi)
@@ -138,12 +148,12 @@ class SatelliteBaseStation(BaseStation):
                 self.connected_ues[ue_id] = ue_pos
         
         # Debug log
-        # print(f"Updated Satellite Position (Spherical): r={r}, theta={theta}, phi={phi}")
-        # print(math.sin(math.radians(theta)), math.cos(math.radians(phi)))
-        # print(f"Latitude: {latitude}, Longitude: {longitude}")
-        # print(f"Coverage Center: x={coverage_x}, y={coverage_y}, Radius: {coverage_radius}")
-        # print(f"Connected UEs: {list(self.connected_ues.keys())}")
-        # print("The number of UE in every step: ", len(self.connected_ues))
+        print(f"Updated Satellite Position (Spherical): r={r}, theta={theta}, phi={phi}")
+        print(math.sin(math.radians(theta)), math.cos(math.radians(phi)))
+        print(f"Latitude: {latitude}, Longitude: {longitude}")
+        print(f"Coverage Center: x={coverage_x}, y={coverage_y}, Radius: {coverage_radius}")
+        print(f"Connected UEs: {list(self.connected_ues.keys())}")
+        print("The number of UE in every step: ", len(self.connected_ues))
     ##############################################################################
 
     def set_power_action(self, power_action:int):

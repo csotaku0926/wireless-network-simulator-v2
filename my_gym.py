@@ -257,7 +257,6 @@ def main():
     sat_parm = [
     {
         "pos": (6971000, 38, 23.7), # (R+h, theta, phi) -> latitude: 90-theta, longitude: phi
-        "pos": (),
         "altitude": 300000,         # 300, 600, 1200 km
         "angular_velocity": (0.0222, -0.0883)  # angular velocity
         # "min_elevation_angle": 10,  

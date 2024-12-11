@@ -247,14 +247,24 @@ def main():
 
     # satellite BS parameters
     # sat_parm = [{"pos": (250, 500, 786000)}, {"pos": (50, 200, 35786000)}]
+
+    # 51.591964, 23.719032 (left-top)     4:23:37   52, 23.7   38, 23.7
+    # 47.915873, 39.645767 (right-button) 4:26:38   48, 39.6   42, 39.6
+
+    # 
+    # 
+
     sat_parm = [
     {
-        "pos": (6971000, 44, 33), # (R+h, theta, phi)
-        "altitude": 600000,       # 600 km
-        "angular_velocity": (0.0001, 0.0001)  # Reasonable angular velocity
+        "pos": (6971000, 38, 23.7), # (R+h, theta, phi) -> latitude: 90-theta, longitude: phi
+        "pos": (),
+        "altitude": 300000,         # 300, 600, 1200 km
+        "angular_velocity": (0.0222, -0.0883)  # angular velocity
         # "min_elevation_angle": 10,  
     }
 ]
+    # coverage_x = r * cos(latitude) * cos(longitude)
+    # coverage_y = r * cos(latitude) * sin(longitude)
     
     # define environment
     env = CACGymEnv(x_lim, y_lim, class_list, terr_parm, sat_parm, datarate = 50, service_class=SERVICE_CLASS)

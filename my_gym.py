@@ -24,7 +24,8 @@ def exit_handler(signum, frame):
 
 signal.signal(signal.SIGINT, exit_handler)
 
-def evaluate_model(learner, env:CACGymEnv, terr_parm:list, sat_parm:list, quantization:int):
+"""original evaluation for original `learner`"""
+def _evaluate_model(learner, env:CACGymEnv, terr_parm:list, sat_parm:list, quantization:int):
     """
     load model and evaluates
 
@@ -85,14 +86,47 @@ def evaluate_model(learner, env:CACGymEnv, terr_parm:list, sat_parm:list, quanti
     print(np.mean(LL_rewards[0]))
 
 
+def run_my_episode(learner, env:CACGymEnv, sat_parm:list, n_episode=100):
+    """
+    run our proposed RL, Round-Robin and Greedy algorithms here
+    """
+
+    for eps in range(n_episode):
+        curr_state = env.reset()
+        total_reward = 0
+        total_constraint_reward = np.zeros(3)
+
+        for j in range(1000):
+            load_levels = np.zeros(len(sat_parm))
+            reminder = curr_state
+            print(curr_state)
+
+            print(f"Load Level: {load_levels}")
+            action = np.argmin(load_levels)
+            print(f"Action chosen: {action}")
+
+            new_state, reward, done, info = env.step(action+1)
+            curr_state = new_state
+
+            for _ in range(len(info)):
+                reward_constr = info[_]
+
+                if reward_constr == -1:
+                    reward_constr = 0
+
+                total_constraint_reward[_] += reward_constr
+
+            total_reward += reward
+
+
 """    
 - `required_data_rate`: base level of required data rate (in bps)
 - `qos_level_data_rate`: every rate of this, obtain another qos level (in bps)
 """
 SERVICE_CLASS = [
-    (100_000, 100_000), # BUD traffic
-    (35_000_000, 10_000_000), # Non real-time video
-    (2_000_000, 10_000_000), # BAD traffic
+    (100, 100), # BUD traffic
+    (350, 100), # Non real-time video
+    (20, 100), # BAD traffic
     (0, 0), # No service
 ]
 
@@ -167,8 +201,6 @@ def main():
         class_id = determine_service()
         class_list.append(class_id)
 
-    quantization = 6
-
     # we ignore terrestrial bs
     '''terr_parm = [{"pos": (500, 500, 30),
         "freq": 800,
@@ -214,20 +246,35 @@ def main():
     terr_parm = []
 
     # satellite BS parameters
-    sat_parm = [{"pos": (250, 500, 786000)}]
+    # sat_parm = [{"pos": (250, 500, 786000)}, {"pos": (50, 200, 35786000)}]
+    sat_parm = [
+    {
+        "pos": (6971000, 44, 33), # (R+h, theta, phi)
+        "altitude": 600000,       # 600 km
+        "angular_velocity": (0.0001, 0.0001)  # Reasonable angular velocity
+        # "min_elevation_angle": 10,  
+    }
+]
     
     # define environment
-    env = CACGymEnv(x_lim, y_lim, class_list, terr_parm, sat_parm, datarate = 50, quantization=quantization, service_class=SERVICE_CLASS)
+    env = CACGymEnv(x_lim, y_lim, class_list, terr_parm, sat_parm, datarate = 50, service_class=SERVICE_CLASS)
     ue_0 = env.env.ue_list[0]
+    ue_1 = env.env.ue_list[1]
+
     # power action goes here
-    action = 1
-    env.env.bs_list[0].set_power_action(action)
+    action = 10
+    bs_0 = env.env.bs_list[0]
+    bs_0.set_power_action(action)
+    _ = ue_1.connect_bs(0)
+    # env.observe()
     actual_dr = ue_0.connect_bs(0)
+    env.observe()
     print(f"set power to {action}:", actual_dr)
 
-    action = 2
-    env.env.bs_list[0].set_power_action(action)
+    action = 20
+    bs_0.set_power_action(action)
     actual_dr = ue_0.connect_bs(0)
+    print(env.observe())
     print(f"set power to {action}:", actual_dr)
 
     # define my learner

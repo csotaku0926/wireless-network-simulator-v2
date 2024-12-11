@@ -219,6 +219,7 @@ class UserEquipment:
             # no BS connected
             bs = self.env.bs_by_id(bs)
             actual_data_rate = bs.connect(self.ue_id, self.data_rate, rsrp)
+            # print(f"{self.ue_id} : Nothing in bs data rate", actual_data_rate)
             self.bs_data_rate_allocation[bs.get_id()] = actual_data_rate
             logging.info("UE %s connected to BS %s with data rate %s", self.ue_id, bs.get_id(), actual_data_rate)
         else:

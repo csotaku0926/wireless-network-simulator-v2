@@ -16,10 +16,10 @@ logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s
 
 class CACGymEnv(gym.Env):
     metadata = {'render.modes': ['human']}
-    QUANTIZATION = 5 #0%, 20%, 40%, 60%, 80% 100%
 
-    def init_env(self, x_lim, y_lim, terr_parm, sat_parm, n_ue, datarate, service_class=None):
+    def init_env(self, x_lim, y_lim, terr_parm, sat_parm, n_ue, datarate, max_datarate=None, max_symbols=None, service_class=None):
         """init `self.env` as Environment using inputs"""
+        self.n_step = 0
         self.env = Environment(x_lim, y_lim, renderer = CustomRenderer())
         self.init_pos = []  # for reset method
         
@@ -31,6 +31,7 @@ class CACGymEnv(gym.Env):
             if (service_class is not None):
                 class_id = self.class_list[i]
                 service_datarate = service_class[class_id][0] # a tuple containing base DR and level DR
+            self.datarate = service_datarate
 
             self.env.add_user(
                 UserEquipment(
@@ -40,82 +41,128 @@ class CACGymEnv(gym.Env):
 
         for i in range(len(terr_parm)):
             self.env.add_base_station(NRBaseStation(self.env, i, terr_parm[i]["pos"], terr_parm[i]["freq"], terr_parm[i]["bandwidth"], terr_parm[i]["numerology"], terr_parm[i]["max_bitrate"], terr_parm[i]["power"], terr_parm[i]["gain"], terr_parm[i]["loss"]))
+        
         for i in range(len(sat_parm)):
-            self.env.add_base_station(SatelliteBaseStation(self.env, len(terr_parm) + i, sat_parm[i]["pos"]))
+            self.env.add_base_station(
+                SatelliteBaseStation(
+                    env=self.env,
+                    bs_id=len(terr_parm) + i,
+                    position=sat_parm[i]["pos"],
+                    altitude=sat_parm[i].get("altitude", 1200),  
+                    angular_velocity=sat_parm[i].get("angular_velocity", (0, 0)),
+                    max_data_rate=max_datarate,
+                    max_symbol=max_symbols,  
+                ))
         
         self.terr_parm = terr_parm
         self.sat_parm = sat_parm
         
 
-    def __init__(self, x_lim, y_lim, class_list, terr_parm, sat_parm, datarate = 25, quantization = QUANTIZATION, service_class=None):
+    def __init__(self, x_lim, y_lim, class_list, terr_parm, sat_parm, datarate = 25, service_class=None, n_action=3):
             """
-            Add `service_class` defined in `my_gym.py`
+            ### parameters
+            - `datarate`: this member value is filled in `CACGymEnv.init_env` with `service_datarate`
+            - `service_class`: service class defined in `my_gym.py`
+            - `n_action`: number of possible actions in action space
+
+            ### state space
+            - `power_level` : `self.current_power` stores current power level 
+            (note: should set power level higher, at least 10, to actually allocate resource to multi-users)
+            - `avg channel capacity` : calculated by subtracting current allocated capacity from total capacity
+
             """
             super(CACGymEnv, self).__init__()
-            self.n_ap = len(terr_parm)+len(sat_parm)
-            self.action_space = spaces.Discrete(self.n_ap+1)
-            #self.observation_space = spaces.MultiDiscrete([self.CLASSES_OF_SERVICE]+[self.QUANTIZATION+1 for _ in range(self.n_ap)])
+            # elapsed step
+            self.n_step = 0
+
+            # QoS
+            self.n_drop = 0 # drop count
+            self.qos_bonus = 0 # increase for each qos level
+            
+            self.n_ap = len(terr_parm) + len(sat_parm)
+            # also known as power control level
+            self.n_action = n_action 
+
+            # set limits on states to control state space size
+            self.max_power_level = 10
+            self.max_connected_user = 100
+            self.bs_max_datarate = 10_000
+            self.bs_max_symbols = 10_000
+
+            # RL stuff
+            self.action_space = spaces.Discrete(self.n_action)
+            self.observation_space = spaces.Discrete(((self.n_action+1) ** self.n_ap))
+            self.a1 = 0.4
+
             self.n_ue = len(class_list)
             self.x_lim = x_lim
             self.y_lim = y_lim
-            self.quantization = quantization
+            self.datarate = datarate
             self.class_list = class_list
             class_set = set(class_list)
             self.number_of_classes = len(class_set)
-            self.observation_space = spaces.Discrete(((self.quantization+1) ** self.n_ap))
-            self.init_env(x_lim, y_lim, terr_parm, sat_parm, self.n_ue, datarate, service_class)
+            self.service_class = service_class
+            self.init_env(x_lim, y_lim, terr_parm, sat_parm, self.n_ue, datarate, 
+                          max_datarate=self.bs_max_datarate, max_symbols=self.bs_max_symbols, service_class=service_class)
             
     
-    def observe(self, ue_id):
+    def observe(self):
+        """
+        return list of current state for each BS
+        """
         bs_obs = []
+        total_capacity = self.bs_max_datarate
+
         for j in range(self.n_ap):
-            l = self.env.bs_by_id(j).get_usage_ratio()
-            bs_obs.append(math.floor(self.quantization * l))
-        observation_arr = np.array(bs_obs)
-        #print(observation_arr)
-        observation = 0
-        # convert observation_arr (represented as mixed-radix number) to decimal number
-        for i in range(len(observation_arr)):
-            observation = observation * (self.quantization+1) + observation_arr[i]
-        return observation
+            bs_j = self.env.bs_by_id(j)
+            allocated_cap = 0
+            ue_allocated_bitrates = bs_j.ue_bitrate_allocation
+            for ue in ue_allocated_bitrates:
+                allocated_cap += ue_allocated_bitrates[ue]
+
+            # states
+            current_power = bs_j.get_power()
+            chnl_cap = total_capacity - allocated_cap
+            connected_users = len(ue_allocated_bitrates)
+            # TODO: Avg QoS
+            n_drop = None
+            sat_pos = bs_j.get_position()
+
+            bs_obs.append([current_power, chnl_cap, connected_users, n_drop, sat_pos])
+
+        return bs_obs
 
     def step(self, action):
-        # actuate the action on self.current_ue_id
-        current_data_rate = None
-        if action != 0:
-            selected_bs = action - 1
-            self.env.ue_by_id(self.current_ue_id).disconnect()
-            # request data rate here
-            current_data_rate = self.env.ue_by_id(self.current_ue_id).connect_bs(selected_bs)
+        """
+        given next power level (action), move on to next time slot
+        """
+        self.n_step += 1
+
+        # we have only one BS to connect...
+        select_bs = 0
         
+        bs_j = self.env.bs_by_id(select_bs)
+        ue_allocated_bitrates = bs_j.ue_bitrate_allocation
+
+        # compute drop amount
+        for ue in ue_allocated_bitrates:
+            dr_ue = self.env.ue_by_id(ue).connect_bs(select_bs)
+            if (dr_ue == None) or (dr_ue < ue.data_rate):
+                self.n_drop += 1
+            else:
+                ue_class = self.class_list[ue]
+                dr_level = self.service_class[ue_class][1]
+                self.qos_bonus += (ue.data_rate - dr_ue) // dr_level
+
+        reward = self.a1 * (self.n_drop // self.n_step)
+
         # disconnect all UEs that are not wanting to connect
         for ue_id in range(self.n_ue):
             if ue_id not in self.env.connection_advertisement:
                 self.env.ue_by_id(ue_id).disconnect()
 
-        done = False
-        # compute reward for all the Q tables
-        dropped = False
-        info = np.zeros(self.number_of_classes)
-        for i in range(self.number_of_classes):
-            # class type is just for reward definition
-            if i == self.class_list[self.current_ue_id]:
-                if (current_data_rate == None) or (current_data_rate < self.env.ue_by_id(ue_id).data_rate):
-                    info[i] = 1
-                    dropped = True
-                else:
-                    info[i] = 0
-            else:
-                info[i] = -1
-        if dropped:
-            reward = 1
-        else:
-            reward = 0
-        
         # select next ue that will be scheduled (if all the UEs are scheduled yet, fast-forward steps in the environment)
         if len(self.advertised_connections) > 0:
-            '''for ue_id in range(self.n_ue):
-                self.env.ue_by_id(ue_id).last_time -= 1'''
             # make the env go 1 substep forward
             self.env.step(substep = True)
         else:
@@ -129,21 +176,11 @@ class CACGymEnv(gym.Env):
         
         next_ue_id = random.choice(self.advertised_connections)
         self.advertised_connections.remove(next_ue_id)
-        '''next_ue = self.env.ue_by_id(next_ue_id)
-        # if next_ue is already connected to an AP, skip it and focus only on the unconnected UEs
-        while next_ue.get_current_bs() != None:
-            while len(self.advertised_connections) == 0:
-                self.env.step()
-                self.advertised_connections = copy.deepcopy(self.env.connection_advertisement)
-            next_ue_id = random.choice(self.advertised_connections)
-            self.advertised_connections.remove(next_ue_id)
-            next_ue = self.env.ue_by_id(next_ue_id)'''
-
         
         self.current_ue_id = next_ue_id
         # after the step(), the user that have to appear in the next state is the next user, not the current user
-        observation = self.observe(next_ue_id)
-                
+        observation = self.observe()
+
         return observation, reward, done, info
 
     def reset(self):
@@ -157,7 +194,7 @@ class CACGymEnv(gym.Env):
         ue_id = random.choice(self.advertised_connections)
         self.current_ue_id = ue_id
         # go back 1 time instant, so at the next step() the connection_advertisement list will not change
-        observation = self.observe(ue_id)
+        observation = self.observe()
         self.advertised_connections.remove(ue_id)
         return observation
 

@@ -6,6 +6,7 @@ import logging
 import math
 import json
 from wns2.environment.osmnx_test import get_cart
+import os
 
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.DEBUG)
 
@@ -89,18 +90,20 @@ class SatelliteBaseStation(BaseStation):
         """
         Update the position of the satellite using spherical coordinates.
         """
-        with open("../environment/pop_data/user_cart_dict.json", 'r') as file:
-            ue_data = json.load(file)
+        # dir_name = os.path.dirname(os.path.abspath(__file__))
+        # cart_dict_path = os.path.join(dir_name, "../environment/pop_data/user_cart_dict.json")
+        # with open(cart_dict_path, 'r') as file:
+        #     ue_data = json.load(file)
 
-        # Combine all UEs from all regions into a single dictionary ##########
-        ue_positions = {}
-        count = 0
-        for region, ue_list in ue_data.items():
-            for i, ue_pos in enumerate(ue_list):
-                ue_id = f"{region}_{i}"  # Create a unique UE ID
-                ue_id = count
-                ue_positions[ue_id] = ue_pos
-                count += 1
+        # # Combine all UEs from all regions into a single dictionary ##########
+        # ue_positions = {}
+        # count = 0
+        # for _, ue_list in ue_data.items():
+        #     for _, ue_pos in enumerate(ue_list):
+        #         # ue_id = f"{region}_{i}"  # Create a unique UE ID
+        #         ue_id = count
+        #         ue_positions[ue_id] = ue_pos
+        #         count += 1
         ######################################################################
 
         h = self.altitude
@@ -147,19 +150,19 @@ class SatelliteBaseStation(BaseStation):
         # Reset connected UEs
         self.connected_ues = {}
         # Determine which UEs are within the coverage radius
-        for ue_id, ue_pos in ue_positions.items():
+        for ue_id, ue_pos in self.env.all_ue_pos.items():
             ue_x, ue_y = ue_pos
             distance = math.sqrt((ue_x - coverage_x) ** 2 + (ue_y - coverage_y) ** 2)
             if distance <= coverage_radius:
                 self.connected_ues[ue_id] = ue_pos
         
         # Debug log
-        print(f"Updated Satellite Position (Spherical): r={r}, theta={theta}, phi={phi}")
-        print(math.sin(math.radians(theta)), math.cos(math.radians(phi)))
-        print(f"Latitude: {latitude}, Longitude: {longitude}")
-        print(f"Coverage Center: x={coverage_x}, y={coverage_y}, Radius: {coverage_radius}")
-        print(f"Connected UEs: {list(self.connected_ues.keys())}")
-        print("The number of UE in every step: ", len(self.connected_ues))
+        # print(f"Updated Satellite Position (Spherical): r={r}, theta={theta}, phi={phi}")
+        # print(math.sin(math.radians(theta)), math.cos(math.radians(phi)))
+        # print(f"Latitude: {latitude}, Longitude: {longitude}")
+        # print(f"Coverage Center: x={coverage_x}, y={coverage_y}, Radius: {coverage_radius}")
+        # # print(f"Connected UEs: {list(self.connected_ues.keys())}")
+        # print("The number of UE in every step: ", len(self.connected_ues))
     ##############################################################################
 
     def set_power_action(self, power_action:int):

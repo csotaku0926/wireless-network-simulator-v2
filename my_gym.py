@@ -86,37 +86,29 @@ def _evaluate_model(learner, env:CACGymEnv, terr_parm:list, sat_parm:list, quant
     print(np.mean(LL_rewards[0]))
 
 
-def run_my_episode(learner, env:CACGymEnv, sat_parm:list, n_episode=100):
+def run_my_episode(env:CACGymEnv, sat_parm:list, n_episode=1):
     """
-    run our proposed RL, Round-Robin and Greedy algorithms here
+    run our proposed RL, Round-Robin and Greedy algorithms should be passed as `learner`
     """
 
     for eps in range(n_episode):
         curr_state = env.reset()
-        total_reward = 0
-        total_constraint_reward = np.zeros(3)
 
-        for j in range(1000):
-            load_levels = np.zeros(len(sat_parm))
-            reminder = curr_state
+        # this loop should terminate once `done` is True
+        for j in range(10):
+            
             print(curr_state)
+            print()
+            print(f"{len(env.env.ue_list)} connecting users")
 
-            print(f"Load Level: {load_levels}")
-            action = np.argmin(load_levels)
-            print(f"Action chosen: {action}")
+            # dummy action
+            action = j % env.n_action
 
-            new_state, reward, done, info = env.step(action+1)
+            new_state, reward, done, info = env.step(action)
             curr_state = new_state
 
-            for _ in range(len(info)):
-                reward_constr = info[_]
-
-                if reward_constr == -1:
-                    reward_constr = 0
-
-                total_constraint_reward[_] += reward_constr
-
-            total_reward += reward
+            print(f"[iter {j}] reward: {reward}, done: {done}")
+            
 
 
 """    
@@ -190,7 +182,7 @@ def main():
 
     # TODO: count the covered UE under satellite
     # how many user making request
-    n_ue = 100 
+    n_ue = 0
 
     # TODO: UE's positions (waiting for satellite coverage model)
     # ue_positions = {0:(x_0, y_0), 1:(x_1, y_1), ...}
@@ -258,24 +250,25 @@ def main():
     
     # define environment
     env = CACGymEnv(x_lim, y_lim, class_list, terr_parm, sat_parm, datarate = 50, service_class=SERVICE_CLASS)
-    ue_0 = env.env.ue_list[0]
-    ue_1 = env.env.ue_list[1]
+    run_my_episode(env, sat_parm, 1)
+    # ue_0 = env.env.ue_list[0]
+    # ue_1 = env.env.ue_list[1]
 
-    # power action goes here
-    action = 10
-    bs_0 = env.env.bs_list[0]
-    bs_0.set_power_action(action)
-    _ = ue_1.connect_bs(0)
+    # # power action goes here
+    # action = 10
+    # bs_0 = env.env.bs_list[0]
+    # bs_0.set_power_action(action)
+    # _ = ue_1.connect_bs(0)
+    # # env.observe()
+    # actual_dr = ue_0.connect_bs(0)
     # env.observe()
-    actual_dr = ue_0.connect_bs(0)
-    env.observe()
-    print(f"set power to {action}:", actual_dr)
+    # print(f"set power to {action}:", actual_dr)
 
-    action = 20
-    bs_0.set_power_action(action)
-    actual_dr = ue_0.connect_bs(0)
-    print(env.observe())
-    print(f"set power to {action}:", actual_dr)
+    # action = 20
+    # bs_0.set_power_action(action)
+    # actual_dr = ue_0.connect_bs(0)
+    # print(env.observe())
+    # print(f"set power to {action}:", actual_dr)
 
     # define my learner
     # learner = lexicographicqlearning.LexicographicQTableLearner(env, "CAC_Env", [0.075, 0.10, 0.15])

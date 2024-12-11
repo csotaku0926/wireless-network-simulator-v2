@@ -188,7 +188,7 @@ class UserEquipment:
     
     def step(self, substep = False):
         if not substep:
-            self.move()
+            # self.move()
             self.advertise_connection()
         return
     

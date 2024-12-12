@@ -42,13 +42,18 @@ class CACGymEnv(gym.Env):
         for i in range(len(terr_parm)):
             self.env.add_base_station(NRBaseStation(self.env, i, terr_parm[i]["pos"], terr_parm[i]["freq"], terr_parm[i]["bandwidth"], terr_parm[i]["numerology"], terr_parm[i]["max_bitrate"], terr_parm[i]["power"], terr_parm[i]["gain"], terr_parm[i]["loss"]))
         for i in range(len(sat_parm)):
-            self.env.add_base_station(SatelliteBaseStation(
-            self.env,
-            len(terr_parm) + i,
-            sat_parm[i]["pos"],
-            altitude=sat_parm[i].get("altitude", 1200),  
-            angular_velocity=sat_parm[i].get("angular_velocity", (0, 0))  
-        ))
+            self.env.add_base_station(
+                SatelliteBaseStation(
+                    env=self.env,
+                    bs_id=len(terr_parm) + i,
+                    position=sat_parm[i]["pos"],
+                    spherical=sat_parm[i]["spherical"],
+                    altitude=sat_parm[i].get("altitude", 600000),  
+                    angular_velocity=sat_parm[i].get("angular_velocity", (0, 0)),
+                    velocity=sat_parm[i].get("velocity", (0, 0)),
+                    max_data_rate=max_datarate,
+                    max_symbol=max_symbols,  
+                ))
         
         self.terr_parm = terr_parm
         self.sat_parm = sat_parm

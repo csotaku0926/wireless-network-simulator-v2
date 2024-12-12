@@ -151,8 +151,9 @@ def main():
     # how big is the map
     x_lim = abs(base_cart[0] - max_cart[0])
     y_lim = abs(base_cart[1] - max_cart[1])
-
-    print("map size:", x_lim, y_lim, "in meters")
+    print("base_cart:", base_cart)
+    print("max_cart:", max_cart)
+    print("map size:", x_lim, y_lim)
 
     # TODO: count the covered UE under satellite
     # how many user making request
@@ -215,6 +216,18 @@ def main():
 
     # satellite BS parameters
     # sat_parm = [{"pos": (250, 500, 786000)}, {"pos": (50, 200, 35786000)}]
+    # 51.591964, 23.719032 (left-top)     4:23:37   52, 23.7   38, 23.7
+    # 47.915873, 39.645767 (right-button) 4:26:38   48, 39.6   42, 39.6
+#     sat_parm = [
+#     {
+#         "pos": (3591576, 2500219, 0),            # (x, y, 0) 
+#         "spherical_coords": (6971000, 38, 23.7), # (R+h, theta, phi) -> latitude: 90-theta, longitude: phi
+#         "altitude": 600000,                      # 300, 600, 1200 km
+#         "angular_velocity": (0.0222, 0.0883),   # angular velocity
+#         "velocity": (-1704.744, 1206.327, 0)     # x-y-z velocity
+#         # "min_elevation_angle": 10,  
+#     }
+# ]
     sat_parm = [
     {
         "pos": (3591576, 2500219, 0),            # (x, y, 0) 
@@ -232,15 +245,24 @@ def main():
     action = 1
     env.env.bs_list[0].set_power_action(action)
     actual_dr = ue_0.connect_bs(0)
-    print(f"set power to {action}:", actual_dr)
+    print("set power to 1:", actual_dr)
 
     action = 2
     env.env.bs_list[0].set_power_action(action)
     actual_dr = ue_0.connect_bs(0)
-    print(f"set power to {action}:", actual_dr)
+    print("set power to 2:", actual_dr)
 
     # define my learner
-    # learner = lexicographicqlearning.LexicographicQTableLearner(env, "CAC_Env", [0.075, 0.10, 0.15])
+    learner = lexicographicqlearning.LexicographicQTableLearner(env, "CAC_Env", [0.075, 0.10, 0.15])
+
+    learner.train(train_episodes=10)
+    learner.save_model()
+    # learner.load_model("CAC_Env", path="saved_models/100UE_50mbps_5BS_100000_1000/")
+    learner.load_model("CAC_Env", path="saved_models/")
+    print("Model loaded")
+    LQL_rewards = learner.test(test_episodes=10)
+    print("Model tested")
+
 
 if __name__ == '__main__':
     main()

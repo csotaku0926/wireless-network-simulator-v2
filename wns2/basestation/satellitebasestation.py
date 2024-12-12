@@ -16,7 +16,9 @@ func(state):
 output EIRP action
 """
 class SatelliteBaseStation(BaseStation):
-    def __init__(self, env, bs_id, position, altitude=600000, angular_velocity=(0, 0), max_data_rate = None, pathloss = None, **kwargs):
+    def __init__(self, env, bs_id, position, spherical,
+                altitude=600000, angular_velocity=(0, 0), velocity=(0, 0),
+                max_data_rate=None, pathloss=None, max_symbol=None, **kwargs):
         self.bs_type = "sat"
         self.carrier_bandwidth = 220 # carrier bandwidth [MHz]
         self.carrier_frequency = 28.4 # frequency [Hz] = 28.4GHz
@@ -32,7 +34,7 @@ class SatelliteBaseStation(BaseStation):
         self.bs_id = bs_id
 
         self.position = position
-
+        self.spherical_coords = spherical # Spherical coordinate system
         ##############################################################################
         self.radius_earth = 6371000 # radius of the earth in km
         self.altitude = altitude # altitude of the satellite in km
@@ -74,17 +76,10 @@ class SatelliteBaseStation(BaseStation):
         """
         Update the position of the satellite using spherical coordinates.
         """
-        base_cart, max_cart = get_cart()
-
-        # how big is the map
-        x_lim = abs(base_cart[0] - max_cart[0])
-        y_lim = abs(base_cart[1] - max_cart[1])
-        # print("base_cart:", base_cart)
-        # print("max_cart:", max_cart)
-        # print("map size:", x_lim, y_lim)
-
-        with open("C:/Users/Morrie0601/wireless-network-simulator-v2/wns2/environment/pop_data/user_cart_dict.json", 'r') as file:
+        with open("../environment/pop_data/user_cart_dict.json", 'r') as file:
             ue_data = json.load(file)
+
+        base_cart, max_cart = get_cart()
 
         # Combine all UEs from all regions into a single dictionary ##########
         ue_positions = {}
@@ -98,8 +93,10 @@ class SatelliteBaseStation(BaseStation):
         ######################################################################
 
         h = self.altitude
-        r, theta, phi = self.position
+        r, theta, phi = self.spherical_coords
         dtheta, dphi = self.angular_velocity
+
+        X, Y = self.position
 
         # half cone angle between covered area and the Earth's core
         psi = math.acos(h / (h + self.radius_earth) * math.cos(math.radians(self.min_elevation_angle))) - math.radians(self.min_elevation_angle)
@@ -127,6 +124,12 @@ class SatelliteBaseStation(BaseStation):
         longitude = phi      # Convert phi to longitude
         if longitude > 180:
             longitude -= 360  # Normalize longitude to range [-180, 180]
+
+        if X > base_cart[0] or X < max_cart[0] or Y > base_cart[1] or Y < max_cart[1]:
+            # print(f"Satellite out of bounds! X={X}, Y={Y}")
+            X, Y = (3591576, 2500219)
+            r, theta, phi = (38, 23.7)
+            
 
         # Compute the coverage center on Earth's surface (Cartesian projection)
         # coverage_x = self.radius_earth * math.sin(math.radians(theta)) * math.cos(math.radians(phi))

@@ -47,10 +47,9 @@ class CACGymEnv(gym.Env):
                     env=self.env,
                     bs_id=len(terr_parm) + i,
                     position=sat_parm[i]["pos"],
-                    spherical=sat_parm[i]["spherical"],
+                    spherical=sat_parm[i]["spherical_coords"],
                     altitude=sat_parm[i].get("altitude", 600000),  
                     angular_velocity=sat_parm[i].get("angular_velocity", (0, 0)),
-                    velocity=sat_parm[i].get("velocity", (0, 0)),
                     max_data_rate=max_datarate,
                     max_symbol=max_symbols,  
                 ))

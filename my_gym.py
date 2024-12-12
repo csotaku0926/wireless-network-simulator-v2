@@ -217,12 +217,10 @@ def main():
     # sat_parm = [{"pos": (250, 500, 786000)}, {"pos": (50, 200, 35786000)}]
     sat_parm = [
     {
-        # "pos": (6971000, 38, 23.7), # (R+h, theta, phi) -> latitude: 90-theta, longitude: phi
-        "pos": (3591576, 2500219),  # (X, Y)
-        "spherical": (6971000, 38, 23.7),
-        "altitude": 300000,         # 300, 600, 1200 km
-        "angular_velocity": (0.0222, -0.0883) , # angular velocity
-        "velocity": (-1704.744, 1206.327)      # velocity
+        "pos": (3591576, 2500219, 0),            # (x, y, 0) 
+        "spherical_coords": (6971000, 38, 23.7), # (R+h, theta, phi) -> latitude: 90-theta, longitude: phi
+        "altitude": 600000,                      # 300, 600, 1200 km
+        "angular_velocity": (0.0222, 0.0883)    # angular velocity
         # "min_elevation_angle": 10,  
     }
 ]

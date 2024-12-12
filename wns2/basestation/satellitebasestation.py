@@ -71,12 +71,11 @@ class SatelliteBaseStation(BaseStation):
 
         self.connected_ues = {}
     
-    ##############################################################################
     def update_position(self):
         """
         Update the position of the satellite using spherical coordinates.
         """
-        with open("C:/Users/Morrie0601/wireless-network-simulator-v2/wns2/environment/pop_data/user_cart_dict.json", 'r') as file:
+        with open("wns2/environment/pop_data/user_cart_dict.json", 'r') as file:
             ue_data = json.load(file)
 
         # Combine all UEs from all regions into a single dictionary ##########
@@ -146,12 +145,11 @@ class SatelliteBaseStation(BaseStation):
                 self.connected_ues[ue_id] = ue_pos
         
         # Debug log
-        print(f"Updated Satellite Position (Spherical): r={r}, theta={theta}, phi={phi}")
-        print(f"Coverage Center: x={x}, y={y}, Radius: {coverage_radius}")
+        # print(f"Updated Satellite Position (Spherical): r={r}, theta={theta}, phi={phi}")
+        # print(f"Coverage Center: x={x}, y={y}, Radius: {coverage_radius}")
         # print(f"Connected UEs: {list(self.connected_ues.keys())}")
         # print(f"Connected UEs' position: {list(self.connected_ues.values())}")
-        print("The number of UE in every step: ", len(self.connected_ues))
-    ##############################################################################
+        # print("The number of UE in every step: ", len(self.connected_ues))
 
     def set_power_action(self, power_action:int):
         """

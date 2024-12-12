@@ -248,7 +248,8 @@ def main():
 
     sat_parm = [
     {
-        "pos": (6971000, 38, 23.7), # (R+h, theta, phi) -> latitude: 90-theta, longitude: phi
+        # "pos": (6971000, 38, 23.7), # this coord do not stay in map
+        "pos": (6971000, 38, 33.7), # (R+h, theta, phi) -> latitude: 90-theta, longitude: phi
         "altitude": 300000,         # 300, 600, 1200 km
         "angular_velocity": (0.0222, -0.0883)  # angular velocity
         # "min_elevation_angle": 10,  
@@ -258,9 +259,11 @@ def main():
     # coverage_y = r * cos(latitude) * sin(longitude)
     
     # define environment
-    env = CACGymEnv(x_lim, y_lim, class_list, terr_parm, sat_parm, datarate = 50, service_class=SERVICE_CLASS)
+    env = CACGymEnv(x_lim, y_lim, class_list, terr_parm, sat_parm,
+                    base_cart=base_cart, max_cart=max_cart, datarate = 50, service_class=SERVICE_CLASS)
     run_my_episode(env, sat_parm, 1)
-    # ue_0 = env.env.ue_list[0]
+
+    # ue_0 = env.env.ue_list[0]print
     # ue_1 = env.env.ue_list[1]
 
     # # power action goes here

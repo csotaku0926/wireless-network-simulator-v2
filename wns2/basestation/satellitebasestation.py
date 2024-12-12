@@ -176,6 +176,19 @@ class SatelliteBaseStation(BaseStation):
     def get_position(self):
         return self.position
     
+    def get_cart_position(self):
+        """convert speherical `self.position` to cartesian"""
+        r, theta, phi = self.get_position()
+        # to radian
+        theta = math.radians(theta)
+        phi = math.radians(phi)
+        # formula
+        x = r * math.sin(theta) * math.cos(phi)
+        y = r * math.sin(theta) * math.sin(phi)
+        z = r * math.cos(theta)
+
+        return (x,y,z)
+    
     def get_carrier_frequency(self):
         return self.carrier_frequency
     

@@ -58,12 +58,13 @@ class CACGymEnv(gym.Env):
         self.sat_parm = sat_parm
         
 
-    def __init__(self, x_lim, y_lim, class_list, terr_parm, sat_parm, datarate = 25, service_class=None, n_action=3):
+    def __init__(self, x_lim, y_lim, class_list, terr_parm, sat_parm, base_cart, max_cart, datarate = 25, service_class=None, n_action=3):
             """
             ### parameters
             - `datarate`: this member value is filled in `CACGymEnv.init_env` with `service_datarate`
             - `service_class`: service class defined in `my_gym.py`
             - `n_action`: number of possible actions in action space
+            - `base_cart`, `max_cart` : carterian coord for the map
 
             ### state space
             - `power_level` : `self.current_power` stores current power level 
@@ -92,11 +93,13 @@ class CACGymEnv(gym.Env):
             # RL stuff
             self.action_space = spaces.Discrete(self.n_action)
             self.observation_space = spaces.Discrete(((self.n_action+1) ** self.n_ap))
-            self.a1 = 0.4
+            self.a1 = 0.6
 
             # map bounadry
             self.x_lim = x_lim
             self.y_lim = y_lim
+            self.base_cart = base_cart
+            self.max_cart = max_cart
             
             # same as the `self.connected_ues` in `satellitebasestation.py`
             self.connected_ues = {}
@@ -115,6 +118,8 @@ class CACGymEnv(gym.Env):
     def observe(self):
         """
         return list of current state for each BS
+
+        output shape: (`self.n_bs`, 5)
         """
         bs_obs = []
         total_capacity = self.bs_max_datarate
@@ -131,12 +136,24 @@ class CACGymEnv(gym.Env):
             chnl_cap = total_capacity - allocated_cap
             connected_users = len(ue_allocated_bitrates)
             n_drop = self.n_drop // self.n_step
-            sat_pos = bs_j.get_position()
+            sat_pos = bs_j.get_cart_position()
 
             bs_obs.append([current_power, chnl_cap, connected_users, n_drop, sat_pos])
 
         return bs_obs
     
+    def is_done(self, sat_pos):
+        """
+        based on satellite position, judging if `done` in this step
+
+        - `sat_pos`: 3D carteiran coord.
+        """
+        min_x, max_x = min(self.base_cart[0], self.max_cart[0]), max(self.base_cart[0], self.max_cart[0])
+        min_y, max_y = min(self.base_cart[1], self.max_cart[1]), max(self.base_cart[1], self.max_cart[1])
+        
+        done = ~((min_x < sat_pos[0] and sat_pos[0] < max_x) and (min_y < sat_pos[1] and sat_pos[1] < max_y))
+            
+        return done
 
     def step(self, action):
         """
@@ -190,9 +207,25 @@ class CACGymEnv(gym.Env):
             next_ue_ids = self.advertised_connections
 
         for ue in next_ue_ids:
+            # weird error
+            if ue not in self.advertised_connections:
+                continue
+
             self.advertised_connections.remove(ue)
+
+            # re-select if `ue` not in `ue_list`
+            while (ue not in self.env.ue_list and len(self.advertised_connections) > 0):
+                ue = self.advertised_connections[-1]
+                self.advertised_connections.pop()
+            if (len(self.advertised_connections) == 0):
+                break
+
             self.env.ue_by_id(ue).connect_bs(select_bs)
+
+            # you may check `ue` position by enabling following line:
+            # print(self.env.ue_by_id(ue).current_position)
         
+
         # set to next power level
         bs_j.set_power_action(action)
 
@@ -200,10 +233,8 @@ class CACGymEnv(gym.Env):
         observation = self.observe()
 
         # TODO: determine if satellite reaches boundary
-        done = False
-        bs_j_pos = bs_j.get_position()
-        # if (bs_j_pos reaches boundary):
-            # done = True
+        sat_pos = observation[select_bs][4]
+        done = self.is_done(sat_pos)
 
         # nothing for `info` for now
         info = {}

@@ -16,9 +16,9 @@ func(state):
 output EIRP action
 """
 class SatelliteBaseStation(BaseStation):
-    def __init__(self, env, bs_id, position, spherical,
-                altitude=600000, angular_velocity=(0, 0), velocity=(0, 0),
-                max_data_rate=None, pathloss=None, max_symbol=None, **kwargs):
+    def __init__(self, env, bs_id, position, spherical_coords,
+                altitude=600000, angular_velocity=(0, 0), 
+                max_data_rate = None, pathloss = None, **kwargs):
         self.bs_type = "sat"
         self.carrier_bandwidth = 220 # carrier bandwidth [MHz]
         self.carrier_frequency = 28.4 # frequency [Hz] = 28.4GHz
@@ -33,13 +33,13 @@ class SatelliteBaseStation(BaseStation):
 
         self.bs_id = bs_id
 
-        self.position = position
-        self.spherical_coords = spherical # Spherical coordinate system
+        self.position = position           # Cartesian coordinates
+        self.spherical_coords = spherical_coords  # Spherical coordinates
         ##############################################################################
         self.radius_earth = 6371000 # radius of the earth in km
         self.altitude = altitude # altitude of the satellite in km
-        # self.spherical_coords = (self.radius_earth + self.altitude, 0, 0)
         self.angular_velocity = angular_velocity
+        # self.velocity = velocity
         self.min_elevation_angle = kwargs.get("min_elevation_angle", 10) # Degrees
         ##############################################################################
 
@@ -76,69 +76,64 @@ class SatelliteBaseStation(BaseStation):
         """
         Update the position of the satellite using spherical coordinates.
         """
-        with open("../environment/pop_data/user_cart_dict.json", 'r') as file:
+        with open("C:/Users/Morrie0601/wireless-network-simulator-v2/wns2/environment/pop_data/user_cart_dict.json", 'r') as file:
             ue_data = json.load(file)
-
-        base_cart, max_cart = get_cart()
 
         # Combine all UEs from all regions into a single dictionary ##########
         ue_positions = {}
-        count = 0
         for region, ue_list in ue_data.items():
             for i, ue_pos in enumerate(ue_list):
                 ue_id = f"{region}_{i}"  # Create a unique UE ID
-                ue_id = count
                 ue_positions[ue_id] = ue_pos
-                count += 1
         ######################################################################
 
         h = self.altitude
         r, theta, phi = self.spherical_coords
         dtheta, dphi = self.angular_velocity
-
-        X, Y = self.position
+        x, y, z = self.position
 
         # half cone angle between covered area and the Earth's core
         psi = math.acos(h / (h + self.radius_earth) * math.cos(math.radians(self.min_elevation_angle))) - math.radians(self.min_elevation_angle)
-        
         # the coverage area
         Area = 2 * math.pi * (r) ** 2 * (1 - math.cos(math.radians(psi)))
         coverage_radius = math.sqrt(Area / math.pi)
         
         
         time_step = self.env.get_sampling_time()
-        # self.env.get_sampling_time()
 
         # Update spherical coordinates
-        theta = (theta + dtheta * time_step)
-        phi   = (phi   + dphi   * time_step)
+        theta = (theta + dtheta * time_step) 
+        phi   = (phi   + dphi   * time_step) 
 
         # Convert back to Cartesian coordinates for position
-        # x = r * math.sin(theta) * math.cos(phi)
-        # y = r * math.sin(theta) * math.sin(phi)
-        # z = 0  # Coverage area projected on Earth's surface
+        x = r * math.sin(math.radians(theta)) * math.cos(math.radians(phi))
+        y = r * math.sin(math.radians(theta)) * math.sin(math.radians(phi))
+        z = 0  # Coverage area projected on Earth's surface
 
-        self.position = (r, theta, phi)
+        self.spherical_coords = (r, theta, phi)
+        self.position = (x, y, z)
 
+        if (theta <= 38) or (theta >= 42) or (phi <= 23.7) or (phi >= 39.6):
+            print("Satellite out of coverage area")
+            self.spherical_coords = (6971000, 38, 23.7)
+            self.position = (3591576, 2500219, 0)
+        else:
+            self.spherical_coords = (r, theta, phi)
+            self.position = (x, y, z)
+        """
         latitude = 90 - theta  # Convert theta to latitude
         longitude = phi      # Convert phi to longitude
         if longitude > 180:
             longitude -= 360  # Normalize longitude to range [-180, 180]
-
-        if X > base_cart[0] or X < max_cart[0] or Y > base_cart[1] or Y < max_cart[1]:
-            # print(f"Satellite out of bounds! X={X}, Y={Y}")
-            X, Y = (3591576, 2500219)
-            r, theta, phi = (38, 23.7)
-            
-
+        """
         # Compute the coverage center on Earth's surface (Cartesian projection)
         # coverage_x = self.radius_earth * math.sin(math.radians(theta)) * math.cos(math.radians(phi))
         # coverage_y = self.radius_earth * math.sin(math.radians(theta)) * math.sin(math.radians(phi))
+        """
         coverage_x = self.radius_earth * math.cos(math.radians(latitude)) * math.cos(math.radians(longitude))
         coverage_y = self.radius_earth * math.cos(math.radians(latitude)) * math.sin(math.radians(longitude))
-
+        """
         # Store the coverage center and radius
-        self.initial_coverage_center = (coverage_x, coverage_y)
         self.coverage_radius = coverage_radius
 
         # Reset connected UEs
@@ -146,16 +141,15 @@ class SatelliteBaseStation(BaseStation):
         # Determine which UEs are within the coverage radius
         for ue_id, ue_pos in ue_positions.items():
             ue_x, ue_y = ue_pos
-            distance = math.sqrt((ue_x - coverage_x) ** 2 + (ue_y - coverage_y) ** 2)
+            distance = math.sqrt((ue_x - x) ** 2 + (ue_y - y) ** 2)
             if distance <= coverage_radius:
                 self.connected_ues[ue_id] = ue_pos
         
         # Debug log
         print(f"Updated Satellite Position (Spherical): r={r}, theta={theta}, phi={phi}")
-        print(math.sin(math.radians(theta)), math.cos(math.radians(phi)))
-        print(f"Latitude: {latitude}, Longitude: {longitude}")
-        print(f"Coverage Center: x={coverage_x}, y={coverage_y}, Radius: {coverage_radius}")
-        print(f"Connected UEs: {list(self.connected_ues.keys())}")
+        print(f"Coverage Center: x={x}, y={y}, Radius: {coverage_radius}")
+        # print(f"Connected UEs: {list(self.connected_ues.keys())}")
+        # print(f"Connected UEs' position: {list(self.connected_ues.values())}")
         print("The number of UE in every step: ", len(self.connected_ues))
     ##############################################################################
 

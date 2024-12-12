@@ -180,11 +180,10 @@ def main():
 
     print("map size:", x_lim, y_lim, "in meters")
 
-    # TODO: count the covered UE under satellite
     # how many user making request
     n_ue = 0
 
-    # TODO: UE's positions (waiting for satellite coverage model)
+    # UE's positions (defined in `satellitebasestation.py`)
     # ue_positions = {0:(x_0, y_0), 1:(x_1, y_1), ...}
 
     # their requested services

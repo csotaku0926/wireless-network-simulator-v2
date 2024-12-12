@@ -9,7 +9,7 @@ import json
 import os
 import numpy as np
 
-from .population import get_city_wikidata
+from population import get_city_wikidata
 
 # [plot geo](https://max-coding.medium.com/getting-administrative-boundaries-from-open-street-map-osm-using-pyosmium-9f108c34f86)
 # make sure you put your own pbf data in "osm_data" folder !
@@ -81,14 +81,14 @@ def plot_gdf(gdf:gpd.GeoDataFrame, level_num:int,
     gdf[(gdf.admin_level == 2)].set_crs(crs=4326).plot(ax=ax, alpha=1, edgecolor="#000", linewidth=2) 
 
     # admin level boundaries
-    if ("ISO3166-2" in gdf.columns):
-        admin_level_gdf = gdf[((gdf.admin_level==level_num) & (~gdf["ISO3166-2"].isna()))].set_crs(crs=4326)
-    else:
-        admin_level_gdf = gdf[(gdf.admin_level==level_num)].set_crs(crs=4326)
-    admin_level_gdf.plot(ax=ax, alpha=0.1, facecolor='b', edgecolor="#000", linewidth=1)
+    # if ("ISO3166-2" in gdf.columns):
+    #     admin_level_gdf = gdf[((gdf.admin_level==level_num) & (~gdf["ISO3166-2"].isna()))].set_crs(crs=4326)
+    # else:
+    admin_level_gdf = gdf[(gdf.admin_level==level_num)].set_crs(crs=4326)
 
     # add labels if provision
     if (level_num == 4):
+        admin_level_gdf.plot(ax=ax, alpha=0.1, facecolor='b', edgecolor="#000", linewidth=1)
         for _, row in admin_level_gdf.iterrows():
             ann_txt = row["name:en"]
             # add pop number if provided dict
@@ -173,11 +173,12 @@ def read_pop_from_qwiki(gdf:gpd.GeoDataFrame) -> dict:
     return pop_oblast_dict
 
 
-def generate_users(gdf:gpd.GeoDataFrame, pop_oblast_dict:dict):
+def generate_users(gdf:gpd.GeoDataFrame, pop_oblast_dict:dict, out_filename="user_per_oblast.json"):
     """
     input:
     - gdf: geodataframe
     - pop_oblast_dict: dict containing population for each oblast
+    - `out_filename`: output json filename
 
     return:
     - dict -- 
@@ -217,7 +218,120 @@ def generate_users(gdf:gpd.GeoDataFrame, pop_oblast_dict:dict):
         print(name_i, ':', len(points), 'users')
 
     # save result
-    with open("pop_data/user_per_oblast.json", "w") as f:
+    out_path = os.path.join(DIR_NAME, f"pop_data/{out_filename}")
+    with open(out_path, "w") as f:
+        json.dump(points_per_geo, f)
+
+    return points_per_geo
+
+
+def generate_users_uniform(gdf:gpd.GeoDataFrame, pop_oblast_dict:dict, out_filename="user_per_oblast_uniform.json"):
+    """
+    Generate user distribution but uniformly
+
+    generate users that stay within polygons (each point has `N_USER_PER_GROUP` users)
+
+    input:
+    - gdf: geodataframe (only `admin_level == 2`)
+    - pop_oblast_dict: dict containing population for each oblast
+    - `out_filename`: output json filename
+
+    return:
+    - dict -- 
+    key is geo name;  
+    value is list containing user coordinates within geo 
+    """
+    points_per_geo = {}
+
+    gdf = gdf[gdf["admin_level"] == 2]
+
+    # count total population
+    total_pop = 0
+    for _, pop in pop_oblast_dict.items():
+        total_pop += pop
+
+    print("total pop:", total_pop)
+
+    geo = gdf.iloc[0]["geo"]
+    name = gdf.iloc[0]["name:en"]
+    minx, miny, maxx, maxy = geo.bounds
+
+    points = []
+    pop_i = total_pop // N_USER_PER_GROUP
+
+    # random generate
+    while (len(points) < pop_i):
+        rand_x = np.random.uniform(minx, maxx)
+        rand_y = np.random.uniform(miny, maxy)
+        random_user_point = Point(rand_x, rand_y)
+
+        if (geo.contains(random_user_point)):
+            points.append((rand_x, rand_y))
+
+        # make sure it's alive
+        if (len(points) > 0 and len(points) % 100 == 0):
+            print(f"{len(points)}/{pop_i} processed")
+
+    points_per_geo[name] = points
+
+    # save result
+    out_path = os.path.join(DIR_NAME, f"pop_data/{out_filename}")
+    with open(out_path, "w") as f:
+        json.dump(points_per_geo, f)
+
+    return points_per_geo
+
+
+def generate_users_poisson(gdf:gpd.GeoDataFrame, ctry_geo, pop_oblast_dict:dict, out_filename="user_per_oblast_poisson.json"):
+    """
+    Generate users in each oblast following Poisson distribution
+    (lambda = mean point of oblast coordinates, size = area population)
+
+    generate users that stay within polygons (each point has `N_USER_PER_GROUP` users)
+
+    input:
+    - gdf: geodataframe
+    - `ctry_geo` : geo of whole country (for country boundary)
+    - pop_oblast_dict: dict containing population for each oblast
+    - `out_filename`: output json filename
+
+    return:
+    - dict -- 
+    key is geo name;  
+    value is list containing user coordinates within geo
+    """
+    points_per_geo = {}
+
+    # calculate area using ellps
+    for i in range(len(gdf)):
+        geo_i = gdf.iloc[i]["geo"]
+        name_i = gdf.iloc[i]["name:en"]
+        pop_i = pop_oblast_dict[name_i]
+
+        # get bound of region
+        minx, miny, maxx, maxy = geo_i.bounds
+        lamx, lamy = int((minx + maxx) / 2), int((miny + maxy) / 2)
+        points = []
+        pop_i = pop_i // N_USER_PER_GROUP
+
+        # random generate
+        while (len(points) < pop_i):
+            rand_x = np.random.poisson(lam=lamx, size=1)[0]
+            rand_x = int(rand_x)
+            rand_y = np.random.poisson(lam=lamy, size=1)[0]
+            rand_y = int(rand_y)
+            random_user_point = Point(rand_x, rand_y)
+
+            if (ctry_geo.contains(random_user_point)):
+                points.append((rand_x, rand_y))
+
+        points_per_geo[name_i] = points
+        print(name_i, ':', len(points), 'users')
+
+    # save result
+    out_path = os.path.join(DIR_NAME, f"pop_data/{out_filename}")
+
+    with open(out_path, "w") as f:
         json.dump(points_per_geo, f)
 
     return points_per_geo
@@ -275,26 +389,47 @@ def get_cart():
     oblast_gdf = oblast_gdf.drop_duplicates(subset='name:en', keep='last') 
     
     # get population from json
-    # with open("pop_data/pop_oblast_dict.json") as f:
-    #     pop_oblast_dict = json.load(f) 
+    with open("pop_data/pop_oblast_dict.json") as f:
+        pop_oblast_dict = json.load(f) 
     # if you want to regenerate users, enable `read_pop_from_qwiki` instead
     # missing "Zaporizhia Oblast": 1638462 (from wiki 2022)  
     # read_pop_from_qwiki(oblast_gdf)
 
 
-    # generate users in each oblast (in lat, lon)
-    # users_per_oblast_dict = generate_users(oblast_gdf, pop_oblast_dict)
-    oblast_json_path = os.path.join(DIR_NAME, "pop_data/user_per_oblast.json")
+    ######## choose your option for user distribution ###########
+    opt = 3
+    #############################################################
+
+    ctry_geo = gdf[gdf["admin_level"] == 2]["geo"]
+
+    # Option 1: generate users in each oblast (in lat, lon)
+    if (opt == 1):
+        plot_level = 4
+        user_per_oblast_json_filename = "user_per_oblast.json"
+        # users_per_oblast_dict = generate_users(oblast_gdf, pop_oblast_dict, user_per_oblast_json_filename)
+
+    # Option 2: generate users uniformly in Ukraine
+    elif (opt == 2):
+        plot_level = 2
+        user_per_oblast_json_filename = "user_per_oblast_uniform.json"
+        # users_per_oblast_dict = generate_users_uniform(df, pop_oblast_dict, user_per_oblast_json_filename)
+        
+    # Option 3: generate users in Poisson distribution
+    
+    else:
+        plot_level = 4
+        # get boundry of whole country
+        user_per_oblast_json_filename = "user_per_oblast_poisson.json"
+        # users_per_oblast_dict = generate_users_poisson(oblast_gdf, ctry_geo.values, pop_oblast_dict, user_per_oblast_json_filename)
+    
+    oblast_json_path = os.path.join(DIR_NAME, "pop_data" , user_per_oblast_json_filename)
     with open(oblast_json_path) as f:
         users_per_oblast_dict = json.load(f)
-
-    # get boundry of whole country
-    ctry_geo = gdf[gdf["admin_level"] == 2]["geo"]
-    ctry_min_x, ctry_min_y, ctry_max_x, ctry_max_y = ctry_geo.bounds.values[0]
 
     # now transform user coord into Cartesian
     users_cart_dict = {}
     # base corrd is set to min x and y, of the country geo
+    ctry_min_x, ctry_min_y, ctry_max_x, ctry_max_y = ctry_geo.bounds.values[0]
     base_cart = calc_cart_coord(ctry_min_x, ctry_min_y)
     max_cart = calc_cart_coord(ctry_max_x, ctry_max_y)
 
@@ -303,29 +438,22 @@ def get_cart():
         new_coords = []
 
         for coord in user_coords:
-            # new_cart = calc_cart_coord(coord[0], coord[1])
-            # new_x = new_cart[0] - base_cart[0]
-            # new_y = new_cart[1] - base_cart[1]
-            # new_coords.append((new_x, new_y))
             new_cart = calc_cart_coord(coord[0], coord[1])
-            # new_x = new_cart[0] - base_cart[0]
-            # new_y = new_cart[1] - base_cart[1]
             new_coords.append((new_cart[0], new_cart[1]))
 
         users_cart_dict[oblast_name] = new_coords
 
     # save cart coord
-    save_coord_path = os.path.join(DIR_NAME, "pop_data/user_cart_dict.json")
+    post_str = user_per_oblast_json_filename[len("user_per_oblast_"):-5]
+    save_coord_path = os.path.join(DIR_NAME, f"pop_data/user_cart_dict_{post_str}.json")
     with open(save_coord_path, "w") as f:
         json.dump(users_cart_dict, f)
 
     # plot
-    # plot_gdf(gdf, 4, users_per_oblast_dict=users_per_oblast_dict)
+    plot_gdf(gdf, plot_level, users_per_oblast_dict=users_per_oblast_dict)
 
     return base_cart, max_cart
 
 if __name__ == '__main__':
-    # main()
-    print(calc_cart_coord(0, 0))
-    print(calc_cart_coord(10, 10))
-    
+    get_cart()
+

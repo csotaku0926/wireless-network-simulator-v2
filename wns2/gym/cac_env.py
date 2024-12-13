@@ -70,6 +70,7 @@ class CACGymEnv(gym.Env):
             - `power_level` : `self.current_power` stores current power level 
             (note: should set power level higher, at least 10, to actually allocate resource to multi-users)
             - `avg channel capacity` : calculated by subtracting current allocated capacity from total capacity
+            - `connected_users` : 
 
             """
             super(CACGymEnv, self).__init__()
@@ -107,7 +108,7 @@ class CACGymEnv(gym.Env):
             self.class_list = []
             self.n_ue = len(class_list)
             # pick randomly `self.n_next_connecting_ue` users for next step connection
-            self.n_next_connecting_ue = 2
+            self.n_next_connecting_ue = 200
             self.service_class = service_class
 
             self.init_env(x_lim, y_lim, terr_parm, sat_parm, self.n_ue, datarate, 
@@ -128,13 +129,17 @@ class CACGymEnv(gym.Env):
             bs_j = self.env.bs_by_id(j)
             allocated_cap = 0
             ue_allocated_bitrates = bs_j.ue_bitrate_allocation
+            zero_bitrate_ue_len = 0
             for ue in ue_allocated_bitrates:
                 allocated_cap += ue_allocated_bitrates[ue]
+                if (ue_allocated_bitrates[ue] <= 0):
+                    zero_bitrate_ue_len += 1
 
             # states
             current_power = bs_j.get_power()
             chnl_cap = total_capacity - allocated_cap
-            connected_users = len(ue_allocated_bitrates)
+            connected_users = len(ue_allocated_bitrates) - zero_bitrate_ue_len
+            # print(ue_allocated_bitrates)
             n_drop = self.n_drop // self.n_step
             sat_pos = bs_j.get_cart_position()
 
@@ -201,25 +206,25 @@ class CACGymEnv(gym.Env):
                     self.advertised_connections.remove(ue_id)
         
         # random pick next connecting users
-        if (self.n_next_connecting_ue <= len(self.advertised_connections)):
-            next_ue_ids = random.sample(self.advertised_connections, self.n_next_connecting_ue)
+        # print("ad:", len(self.advertised_connections))
+        
+        if (self.n_next_connecting_ue <= len(self.env.ue_list)):
+            next_ue_keys = random.sample(list(self.env.ue_list.keys()), self.n_next_connecting_ue)
+            next_ue_ids = {}
+            for ue in next_ue_keys:
+                next_ue_ids[ue] = self.env.ue_list[ue]
         else:
-            next_ue_ids = self.advertised_connections
+            next_ue_ids = self.env.ue_list
 
+        
         for ue in next_ue_ids:
-            # weird error
-            if ue not in self.advertised_connections:
-                continue
-
-            self.advertised_connections.remove(ue)
 
             # re-select if `ue` not in `ue_list`
-            while (ue not in self.env.ue_list and len(self.advertised_connections) > 0):
-                ue = self.advertised_connections[-1]
-                self.advertised_connections.pop()
-            if (len(self.advertised_connections) == 0):
-                break
+            # while (ue not in self.env.ue_list and len(self.advertised_connections) > 0):
+            #     ue = self.advertised_connections[-1]
+            #     self.advertised_connections.pop()
 
+            # self.advertised_connections.remove(ue)
             self.env.ue_by_id(ue).connect_bs(select_bs)
 
             # you may check `ue` position by enabling following line:
@@ -232,7 +237,7 @@ class CACGymEnv(gym.Env):
         # after the step(), the user that have to appear in the next state is the next user, not the current user
         observation = self.observe()
 
-        # TODO: determine if satellite reaches boundary
+        # determine if satellite reaches boundary
         sat_pos = observation[select_bs][4]
         done = self.is_done(sat_pos)
 
@@ -243,14 +248,6 @@ class CACGymEnv(gym.Env):
 
     def reset(self):
         self.init_env(self.x_lim, self.y_lim, self.terr_parm, self.sat_parm, self.n_ue, self.datarate)
-        # self.env.step()
-        # self.advertised_connections = copy.deepcopy(self.env.connection_advertisement)
-        # # step until at least one UE wants to connect
-        # while len(self.advertised_connections) == 0:
-        #     self.env.step()
-        #     self.advertised_connections = copy.deepcopy(self.env.connection_advertisement)
-        # ue_id = random.choice(self.advertised_connections)
-        # self.current_ue_id = ue_id
         # go back 1 time instant, so at the next step() the connection_advertisement list will not change
         observation = self.observe()
         # self.advertised_connections.remove(ue_id)

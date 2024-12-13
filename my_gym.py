@@ -24,7 +24,8 @@ def exit_handler(signum, frame):
 
 signal.signal(signal.SIGINT, exit_handler)
 
-def evaluate_model(learner, env:CACGymEnv, terr_parm:list, sat_parm:list, quantization:int):
+"""original evaluation for original `learner`"""
+def _evaluate_model(learner, env:CACGymEnv, terr_parm:list, sat_parm:list, quantization:int):
     """
     load model and evaluates
 
@@ -85,14 +86,40 @@ def evaluate_model(learner, env:CACGymEnv, terr_parm:list, sat_parm:list, quanti
     print(np.mean(LL_rewards[0]))
 
 
+def run_my_episode(env:CACGymEnv, sat_parm:list, n_episode=1):
+    """
+    run our proposed RL, Round-Robin and Greedy algorithms should be passed as `learner`
+    """
+
+    for eps in range(n_episode):
+        curr_state = env.reset()
+
+        # this loop should terminate once `done` is True
+        for j in range(200):
+            print()
+            print("--------------")
+            print(curr_state) # current_power, chnl_cap, connected_users, n_drop, sat_pos
+            print(f"{len(env.env.ue_list)} connecting users")
+
+            # dummy action
+            action = j % env.n_action
+
+            new_state, reward, done, info = env.step(action)
+            curr_state = new_state
+
+            print(f"[iter {j}] reward: {reward}, done: {done}")
+
+            
+
+
 """    
 - `required_data_rate`: base level of required data rate (in bps)
 - `qos_level_data_rate`: every rate of this, obtain another qos level (in bps)
 """
 SERVICE_CLASS = [
-    (100_000, 100_000), # BUD traffic
-    (35_000_000, 10_000_000), # Non real-time video
-    (2_000_000, 10_000_000), # BAD traffic
+    (100, 100), # BUD traffic
+    (350, 100), # Non real-time video
+    (20, 100), # BAD traffic
     (0, 0), # No service
 ]
 
@@ -151,15 +178,13 @@ def main():
     # how big is the map
     x_lim = abs(base_cart[0] - max_cart[0])
     y_lim = abs(base_cart[1] - max_cart[1])
-    print("base_cart:", base_cart)
-    print("max_cart:", max_cart)
-    print("map size:", x_lim, y_lim)
 
-    # TODO: count the covered UE under satellite
+    print("map size:", x_lim, y_lim, "in meters")
+
     # how many user making request
-    n_ue = 100 
+    n_ue = 0
 
-    # TODO: UE's positions (waiting for satellite coverage model)
+    # UE's positions (defined in `satellitebasestation.py`)
     # ue_positions = {0:(x_0, y_0), 1:(x_1, y_1), ...}
 
     # their requested services
@@ -167,8 +192,6 @@ def main():
     for _ in range(n_ue):
         class_id = determine_service()
         class_list.append(class_id)
-
-    quantization = 6
 
     # we ignore terrestrial bs
     '''terr_parm = [{"pos": (500, 500, 30),
@@ -216,53 +239,62 @@ def main():
 
     # satellite BS parameters
     # sat_parm = [{"pos": (250, 500, 786000)}, {"pos": (50, 200, 35786000)}]
+
     # 51.591964, 23.719032 (left-top)     4:23:37   52, 23.7   38, 23.7
     # 47.915873, 39.645767 (right-button) 4:26:38   48, 39.6   42, 39.6
+
+    # 
+    # 
+
 #     sat_parm = [
 #     {
-#         "pos": (3591576, 2500219, 0),            # (x, y, 0) 
-#         "spherical_coords": (6971000, 38, 23.7), # (R+h, theta, phi) -> latitude: 90-theta, longitude: phi
-#         "altitude": 600000,                      # 300, 600, 1200 km
-#         "angular_velocity": (0.0222, 0.0883),   # angular velocity
-#         "velocity": (-1704.744, 1206.327, 0)     # x-y-z velocity
+#         # "pos": (6971000, 38, 23.7), # this coord do not stay in map
+#         "pos": (6971000, 38, 33.7), # (R+h, theta, phi) -> latitude: 90-theta, longitude: phi
+#         "altitude": 300000,         # 300, 600, 1200 km
+#         "angular_velocity": (0.0222, -0.0883)  # angular velocity
 #         # "min_elevation_angle": 10,  
 #     }
 # ]
     sat_parm = [
     {
-        "pos": (3591576, 2500219, 0),            # (x, y, 0) 
-        "spherical_coords": (6971000, 38, 23.7), # (R+h, theta, phi) -> latitude: 90-theta, longitude: phi
+        # "pos": (3591576, 2500219, 0),            # (x, y, 0) 
+        "pos": (6971000, 38, 23.7), # (R+h, theta, phi) -> latitude: 90-theta, longitude: phi
+        "x_y_z": (3591576, 2500219, 0),
         "altitude": 600000,                      # 300, 600, 1200 km
         "angular_velocity": (0.0222, 0.0883)    # angular velocity
         # "min_elevation_angle": 10,  
     }
 ]
     
+    # coverage_x = r * cos(latitude) * cos(longitude)
+    # coverage_y = r * cos(latitude) * sin(longitude)
+    
     # define environment
-    env = CACGymEnv(x_lim, y_lim, class_list, terr_parm, sat_parm, datarate = 50, quantization=quantization, service_class=SERVICE_CLASS)
-    ue_0 = env.env.ue_list[0]
-    # power action goes here
-    action = 1
-    env.env.bs_list[0].set_power_action(action)
-    actual_dr = ue_0.connect_bs(0)
-    print("set power to 1:", actual_dr)
+    env = CACGymEnv(x_lim, y_lim, class_list, terr_parm, sat_parm,
+                    base_cart=base_cart, max_cart=max_cart, datarate = 50, service_class=SERVICE_CLASS)
+    run_my_episode(env, sat_parm, 1)
 
-    action = 2
-    env.env.bs_list[0].set_power_action(action)
-    actual_dr = ue_0.connect_bs(0)
-    print("set power to 2:", actual_dr)
+    # ue_0 = env.env.ue_list[0]print
+    # ue_1 = env.env.ue_list[1]
+
+    # # power action goes here
+    # action = 10
+    # bs_0 = env.env.bs_list[0]
+    # bs_0.set_power_action(action)
+    # _ = ue_1.connect_bs(0)
+    # # env.observe()
+    # actual_dr = ue_0.connect_bs(0)
+    # env.observe()
+    # print(f"set power to {action}:", actual_dr)
+
+    # action = 20
+    # bs_0.set_power_action(action)
+    # actual_dr = ue_0.connect_bs(0)
+    # print(env.observe())
+    # print(f"set power to {action}:", actual_dr)
 
     # define my learner
-    learner = lexicographicqlearning.LexicographicQTableLearner(env, "CAC_Env", [0.075, 0.10, 0.15])
-
-    learner.train(train_episodes=10)
-    learner.save_model()
-    # learner.load_model("CAC_Env", path="saved_models/100UE_50mbps_5BS_100000_1000/")
-    learner.load_model("CAC_Env", path="saved_models/")
-    print("Model loaded")
-    LQL_rewards = learner.test(test_episodes=10)
-    print("Model tested")
-
+    # learner = lexicographicqlearning.LexicographicQTableLearner(env, "CAC_Env", [0.075, 0.10, 0.15])
 
 if __name__ == '__main__':
     main()

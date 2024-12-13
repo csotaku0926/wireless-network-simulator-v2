@@ -99,7 +99,7 @@ def run_my_episode(env:CACGymEnv, sat_parm:list, n_episode=1):
             
             print(curr_state)
             print()
-            # print(f"{len(env.env.ue_list)} connecting users")
+            print(f"{len(env.env.ue_list)} connecting users")
 
             # dummy action
             action = j % env.n_action + 25

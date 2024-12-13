@@ -6,6 +6,7 @@ import logging
 import math
 import json
 from wns2.environment.osmnx_test import get_cart
+import os
 
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.DEBUG)
 
@@ -16,9 +17,14 @@ func(state):
 output EIRP action
 """
 class SatelliteBaseStation(BaseStation):
-    def __init__(self, env, bs_id, position, spherical_coords,
+    def __init__(self, env, bs_id, position, x_y_z,
                 altitude=600000, angular_velocity=(0, 0), 
-                max_data_rate = None, pathloss = None, **kwargs):
+                max_data_rate=None, pathloss=None, max_symbol=None, **kwargs):
+        """
+        parameters
+        - `max_data_rate` : total data rate
+        - `max_symbol` : total symbol that can be allocated
+        """
         self.bs_type = "sat"
         self.carrier_bandwidth = 220 # carrier bandwidth [MHz]
         self.carrier_frequency = 28.4 # frequency [Hz] = 28.4GHz
@@ -33,13 +39,12 @@ class SatelliteBaseStation(BaseStation):
 
         self.bs_id = bs_id
 
-        self.position = position           # Cartesian coordinates
-        self.spherical_coords = spherical_coords  # Spherical coordinates
+        self.position = position           # Spherical coordinates
+        self.x_y_z = x_y_z                 # Cartesian coordinates
         ##############################################################################
         self.radius_earth = 6371000 # radius of the earth in km
         self.altitude = altitude # altitude of the satellite in km
         self.angular_velocity = angular_velocity
-        # self.velocity = velocity
         self.min_elevation_angle = kwargs.get("min_elevation_angle", 10) # Degrees
         ##############################################################################
 
@@ -50,14 +55,22 @@ class SatelliteBaseStation(BaseStation):
         self.guard_space = 64  # fixed [symbols]
         self.total_users = 0
         self.frame_duration = 2 # lenght of the frame in milliseconds
-        self.total_symbols = (self.frame_length - 288*2 - 64*2) #(self.frame_length - 288*2 - 64*2) # in a frame there are 2 reference burst made of 288 symbols each, with a guard time of 64 symbols between them and between any other burst
+        
+        # in a frame there are 2 reference burst made of 288 symbols each, 
+        # with a guard time of 64 symbols between them and between any other burst
+        self.total_symbols = (self.frame_length - self.rb_length * 2 - self.guard_space * 2)  
+        if (max_symbol is not None):
+            self.total_symbols = max_symbol
+
         self.frame_utilization = 0  # allocated resources
-        if max_data_rate != None:
+        
+        self.total_bitrate = -1
+        if max_data_rate is not None:
             self.total_bitrate = max_data_rate
-        else:
-            self.total_bitrate = -1
-        if pathloss == None:
+        
+        if pathloss is None:
             self.pathloss = FreeSpacePathLoss()
+
         self.allocated_bitrate = 0
         self.ue_allocation = {}
         self.ue_bitrate_allocation = {}
@@ -71,25 +84,25 @@ class SatelliteBaseStation(BaseStation):
 
         self.connected_ues = {}
     
+
     def update_position(self):
         """
         Update the position of the satellite using spherical coordinates.
         """
-        with open("wns2/environment/pop_data/user_cart_dict.json", 'r') as file:
+        with open("wireless-network-simulator-v2/wns2/environment/pop_data/user_cart_dict.json", 'r') as file:
             ue_data = json.load(file)
 
-        # Combine all UEs from all regions into a single dictionary ##########
+        # Combine all UEs from all regions into a single dictionary
         ue_positions = {}
         for region, ue_list in ue_data.items():
             for i, ue_pos in enumerate(ue_list):
                 ue_id = f"{region}_{i}"  # Create a unique UE ID
                 ue_positions[ue_id] = ue_pos
-        ######################################################################
-
+        
         h = self.altitude
-        r, theta, phi = self.spherical_coords
+        r, theta, phi = self.position
         dtheta, dphi = self.angular_velocity
-        x, y, z = self.position
+        x, y, z = self.x_y_z
 
         # half cone angle between covered area and the Earth's core
         psi = math.acos(h / (h + self.radius_earth) * math.cos(math.radians(self.min_elevation_angle))) - math.radians(self.min_elevation_angle)
@@ -102,36 +115,31 @@ class SatelliteBaseStation(BaseStation):
 
         # Update spherical coordinates
         theta = (theta + dtheta * time_step) 
-        phi   = (phi   + dphi   * time_step) 
+        phi   = (phi   + dphi   * time_step)
+
 
         # Convert back to Cartesian coordinates for position
         x = r * math.sin(math.radians(theta)) * math.cos(math.radians(phi))
         y = r * math.sin(math.radians(theta)) * math.sin(math.radians(phi))
         z = 0  # Coverage area projected on Earth's surface
 
-        self.spherical_coords = (r, theta, phi)
-        self.position = (x, y, z)
+        self.position = (r, theta, phi)
+        self.x_y_z = (x, y, z)
 
         if (theta <= 38) or (theta >= 42) or (phi <= 23.7) or (phi >= 39.6):
             print("Satellite out of coverage area")
-            self.spherical_coords = (6971000, 38, 23.7)
-            self.position = (3591576, 2500219, 0)
+            self.position = (6971000, 38, 23.7)
+            self.x_y_z = (3591576, 2500219, 0)
         else:
-            self.spherical_coords = (r, theta, phi)
-            self.position = (x, y, z)
-        """
-        latitude = 90 - theta  # Convert theta to latitude
-        longitude = phi      # Convert phi to longitude
-        if longitude > 180:
-            longitude -= 360  # Normalize longitude to range [-180, 180]
-        """
-        # Compute the coverage center on Earth's surface (Cartesian projection)
-        # coverage_x = self.radius_earth * math.sin(math.radians(theta)) * math.cos(math.radians(phi))
-        # coverage_y = self.radius_earth * math.sin(math.radians(theta)) * math.sin(math.radians(phi))
-        """
-        coverage_x = self.radius_earth * math.cos(math.radians(latitude)) * math.cos(math.radians(longitude))
-        coverage_y = self.radius_earth * math.cos(math.radians(latitude)) * math.sin(math.radians(longitude))
-        """
+            self.position = (r, theta, phi)
+            self.x_y_z = (x, y, z)
+
+        # # Compute the coverage center on Earth's surface (Cartesian projection)
+        # # coverage_x = self.radius_earth * math.sin(math.radians(theta)) * math.cos(math.radians(phi))
+        # # coverage_y = self.radius_earth * math.sin(math.radians(theta)) * math.sin(math.radians(phi))
+        # coverage_x = self.radius_earth * math.cos(math.radians(latitude)) * math.cos(math.radians(longitude))
+        # coverage_y = self.radius_earth * math.cos(math.radians(latitude)) * math.sin(math.radians(longitude))
+
         # Store the coverage center and radius
         self.coverage_radius = coverage_radius
 
@@ -143,13 +151,14 @@ class SatelliteBaseStation(BaseStation):
             distance = math.sqrt((ue_x - x) ** 2 + (ue_y - y) ** 2)
             if distance <= coverage_radius:
                 self.connected_ues[ue_id] = ue_pos
-        
+    
         # Debug log
-        # print(f"Updated Satellite Position (Spherical): r={r}, theta={theta}, phi={phi}")
-        # print(f"Coverage Center: x={x}, y={y}, Radius: {coverage_radius}")
+        print(f"Updated Satellite Position (Spherical): r={r}, theta={theta}, phi={phi}")
+        print(f"Coverage Center: x={x}, y={y}, Radius: {coverage_radius}")
         # print(f"Connected UEs: {list(self.connected_ues.keys())}")
         # print(f"Connected UEs' position: {list(self.connected_ues.values())}")
-        # print("The number of UE in every step: ", len(self.connected_ues))
+        print("The number of UE in every step: ", len(self.connected_ues))
+
 
     def set_power_action(self, power_action:int):
         """
@@ -161,6 +170,20 @@ class SatelliteBaseStation(BaseStation):
 
     def get_position(self):
         return self.position
+    
+    def get_cart_position(self):
+        """convert speherical `self.position` to cartesian"""
+        r, theta, phi = self.get_position()
+        # to radian
+        theta = math.radians(theta)
+        phi = math.radians(phi)
+        # formula
+        x = self.radius_earth * math.sin(theta) * math.cos(phi)
+        y = self.radius_earth * math.sin(theta) * math.sin(phi)
+        z = r * math.cos(theta)
+
+
+        return (x,y,z)
     
     def get_carrier_frequency(self):
         return self.carrier_frequency
@@ -177,48 +200,56 @@ class SatelliteBaseStation(BaseStation):
     def get_rbur(self):
         return sum(self.resource_utilization_array)/(self.T*self.total_symbols)
     
+    def get_power(self):
+        return self.sat_eirp
+
     def connect(self, ue_id, desired_data_rate, rsrp):
 
         #IMPORTANT: there must always be a guard space to be added to each allocation. This guard space is included  
         # in the frame utilization but not in the ue_allocation dictionary
         N_blocks, r = self.compute_nsymb_SAT(desired_data_rate, rsrp)
-        print("n blocks:", N_blocks)
         logging.info("N_blocks = %d - r = %f" %(N_blocks, r))
         
         # check if there is enough bitrate
         # rsrp = eirp - path_loss
-        if self.total_bitrate != -1 and self.total_bitrate - self.allocated_bitrate <= (r*N_blocks):
+        if self.total_bitrate != -1 and self.total_bitrate - self.allocated_bitrate <= (r * N_blocks):
             dr = self.total_bitrate - self.allocated_bitrate
             N_blocks, r = self.compute_nsymb_SAT(dr, rsrp)
 
         # check if required symbols more than enough
-        if self.total_symbols - self.frame_utilization <= self.tb_header + N_blocks*64 + self.guard_space:
-            N_blocks = math.floor((self.total_symbols - self.frame_utilization - self.guard_space - self.tb_header)/64)
+        remain_symbol = self.total_symbols - self.frame_utilization
+        requested_symbol = self.tb_header + N_blocks*64 + self.guard_space
+
+        if remain_symbol <= requested_symbol:
+            N_blocks = math.floor((remain_symbol - self.guard_space - self.tb_header)/64)
+            # print(f"[bs.connect] {ue_id} : {self.tb_header + N_blocks*64 + self.guard_space}, remain: {self.total_symbols - self.frame_utilization}")
+            # print(f"N block: {N_blocks}\n")
             if N_blocks <= 0: # we cannot allocate neither 1 block of 64 symbols
                 self.ue_allocation[ue_id] = 0
                 self.ue_bitrate_allocation[ue_id] = 0
                 return 0
 
+        allocated_bitrate = r * N_blocks
+
         if ue_id not in self.ue_allocation:
-            self.ue_allocation[ue_id] = self.tb_header + N_blocks*64 + self.guard_space
-            self.frame_utilization += self.tb_header + N_blocks*64 + self.guard_space
+            self.ue_allocation[ue_id] = requested_symbol
+            self.frame_utilization += requested_symbol
         else:
             self.frame_utilization -= self.ue_allocation[ue_id]
-            self.ue_allocation[ue_id] = self.tb_header + N_blocks*64 + self.guard_space
+            self.ue_allocation[ue_id] = requested_symbol
             self.frame_utilization += self.ue_allocation[ue_id]
 
         if ue_id not in self.ue_bitrate_allocation:
-            self.ue_bitrate_allocation[ue_id] = (r*N_blocks) 
-            self.allocated_bitrate += (r*N_blocks)
+            self.ue_bitrate_allocation[ue_id] = allocated_bitrate
+            # print(f"{ue_id} required bitrate: {allocated_bitrate}") 
+            self.allocated_bitrate += allocated_bitrate
         else:
             self.allocated_bitrate -= self.ue_bitrate_allocation[ue_id]
-            self.ue_bitrate_allocation[ue_id] = (r*N_blocks)
-            self.allocated_bitrate += (r*N_blocks)
+            self.ue_bitrate_allocation[ue_id] = allocated_bitrate
+            self.allocated_bitrate += allocated_bitrate
 
         # return allocated data rate (Mbps)
-        print("N block:", N_blocks)
-        print("frame allocation:", self.ue_allocation[ue_id])
-        return (r*N_blocks)
+        return allocated_bitrate
     
     def disconnect(self, ue_id):
         self.frame_utilization -= self.ue_allocation[ue_id]

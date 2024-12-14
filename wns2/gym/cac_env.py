@@ -142,7 +142,8 @@ class CACGymEnv(gym.Env):
             connected_users = len(ue_allocated_bitrates) - zero_bitrate_ue_len
             # print(ue_allocated_bitrates)
             n_drop = self.n_drop // self.n_step
-            sat_pos = bs_j.get_cart_position()
+            # sat_pos = bs_j.get_cart_position()
+            sat_pos = bs_j.get_position()
 
             bs_obs.append([current_power, chnl_cap, connected_users, n_drop, sat_pos])
 
@@ -154,11 +155,14 @@ class CACGymEnv(gym.Env):
 
         - `sat_pos`: 3D carteiran coord.
         """
-        min_x, max_x = min(self.base_cart[0], self.max_cart[0]), max(self.base_cart[0], self.max_cart[0])
-        min_y, max_y = min(self.base_cart[1], self.max_cart[1]), max(self.base_cart[1], self.max_cart[1])
-        
-        done = ~((min_x < sat_pos[0] and sat_pos[0] < max_x) and (min_y < sat_pos[1] and sat_pos[1] < max_y))
-            
+        # sat_pos = (r, theta, phi) 
+        if (sat_pos[1] <= 38) or (sat_pos[1] >= 42) or (sat_pos[2] <= 23.7) or (sat_pos[2] >= 39.6):
+            done = True
+        else:
+            done = False
+        # min_x, max_x = min(self.base_cart[0], self.max_cart[0]), max(self.base_cart[0], self.max_cart[0])
+        # min_y, max_y = min(self.base_cart[1], self.max_cart[1]), max(self.base_cart[1], self.max_cart[1])
+        # done = ~((min_x < sat_pos[0] and sat_pos[0] < max_x) and (min_y < sat_pos[1] and sat_pos[1] < max_y))
         return done
 
     def step(self, action):

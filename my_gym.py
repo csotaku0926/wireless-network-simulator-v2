@@ -243,9 +243,6 @@ def main():
     # 51.591964, 23.719032 (left-top)     4:23:37   52, 23.7   38, 23.7
     # 47.915873, 39.645767 (right-button) 4:26:38   48, 39.6   42, 39.6
 
-    # 
-    # 
-
 #     sat_parm = [
 #     {
 #         # "pos": (6971000, 38, 23.7), # this coord do not stay in map
@@ -265,7 +262,6 @@ def main():
         # "min_elevation_angle": 10,  
     }
 ]
-    
     # coverage_x = r * cos(latitude) * cos(longitude)
     # coverage_y = r * cos(latitude) * sin(longitude)
     

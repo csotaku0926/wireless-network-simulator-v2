@@ -10,6 +10,8 @@ import logging
 import numpy as np
 import copy
 import math
+import os
+import json
 
 
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.DEBUG)
@@ -17,7 +19,7 @@ logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s
 class CACGymEnv(gym.Env):
     metadata = {'render.modes': ['human']}
 
-    def init_env(self, x_lim, y_lim, terr_parm, sat_parm, n_ue, datarate, max_datarate=None, max_symbols=None, service_class=None):
+    def init_env(self, x_lim, y_lim, terr_parm, sat_parm, n_ue, datarate, max_datarate=None, max_symbols=None, service_class=None, max_power_action=10):
         """init `self.env` as Environment using inputs"""
         self.n_step = 1
         self.env = Environment(x_lim, y_lim, renderer = CustomRenderer())
@@ -48,10 +50,12 @@ class CACGymEnv(gym.Env):
                     env=self.env,
                     bs_id=len(terr_parm) + i,
                     position=sat_parm[i]["pos"],
+                    x_y_z=sat_parm[i]["x_y_z"],
                     altitude=sat_parm[i].get("altitude", 1200),  
                     angular_velocity=sat_parm[i].get("angular_velocity", (0, 0)),
                     max_data_rate=max_datarate,
-                    max_symbol=max_symbols,  
+                    max_symbol=max_symbols,
+                    max_power_action=max_power_action,  
                 ))
         
         self.terr_parm = terr_parm
@@ -70,6 +74,7 @@ class CACGymEnv(gym.Env):
             - `power_level` : `self.current_power` stores current power level 
             (note: should set power level higher, at least 10, to actually allocate resource to multi-users)
             - `avg channel capacity` : calculated by subtracting current allocated capacity from total capacity
+            - `connected_users` : 
 
             """
             super(CACGymEnv, self).__init__()
@@ -92,8 +97,9 @@ class CACGymEnv(gym.Env):
 
             # RL stuff
             self.action_space = spaces.Discrete(self.n_action)
-            self.observation_space = spaces.Discrete(((self.n_action+1) ** self.n_ap))
-            self.a1 = 0.6
+            self.observation_space = spaces.Box(low=0.0, high=1.0, shape=(6, ), dtype=np.float32) # normalized obs space
+            self.a1 = 0.01
+            self.a2 = 0.1
 
             # map bounadry
             self.x_lim = x_lim
@@ -104,16 +110,29 @@ class CACGymEnv(gym.Env):
             # same as the `self.connected_ues` in `satellitebasestation.py`
             self.connected_ues = {}
             self.datarate = datarate
-            self.class_list = []
+            self.class_list = class_list
             self.n_ue = len(class_list)
             # pick randomly `self.n_next_connecting_ue` users for next step connection
-            self.n_next_connecting_ue = 2
+            self.n_next_connecting_ue = 200
             self.service_class = service_class
 
+ 
             self.init_env(x_lim, y_lim, terr_parm, sat_parm, self.n_ue, datarate, 
-                          max_datarate=self.bs_max_datarate, max_symbols=self.bs_max_symbols, service_class=service_class)
+                          max_datarate=self.bs_max_datarate, max_symbols=self.bs_max_symbols, service_class=service_class, 
+                          max_power_action=self.max_power_level)
             
-            self.advertised_connections = []
+            # pre-determine class type
+            bs_dir_name = os.path.dirname(__file__)
+            read_json_path = os.path.join(bs_dir_name, "../environment/pop_data/user_cart_dict.json")
+            with open(read_json_path, 'r') as file:
+                ue_data = json.load(file)
+
+            # UE list from satellite BS python file
+            self.ue_class_type = {}
+            for region, ue_list in ue_data.items():
+                for i in range(len(ue_list)):
+                    ue_id = f"{region}_{i}"  # Create a unique UE ID (BS.py)
+                    self.ue_class_type[ue_id] = self.env.determine_service()
 
     def observe(self):
         """
@@ -122,23 +141,44 @@ class CACGymEnv(gym.Env):
         output shape: (`self.n_bs`, 5)
         """
         bs_obs = []
+        self.n_drop = 0
         total_capacity = self.bs_max_datarate
 
         for j in range(self.n_ap):
             bs_j = self.env.bs_by_id(j)
             allocated_cap = 0
             ue_allocated_bitrates = bs_j.ue_bitrate_allocation
+            zero_bitrate_ue_len = 0
+            
             for ue in ue_allocated_bitrates:
                 allocated_cap += ue_allocated_bitrates[ue]
+                if (ue_allocated_bitrates[ue] <= self.ue_class_type[ue]):
+                    self.n_drop += 1
+                if (ue_allocated_bitrates[ue] == 0):
+                    zero_bitrate_ue_len += 1
 
             # states
-            current_power = bs_j.get_power()
+            current_power = bs_j.get_power() # return sat_eirp
+            current_power /= bs_j.get_max_power() # normalize
             chnl_cap = total_capacity - allocated_cap
-            connected_users = len(ue_allocated_bitrates)
-            n_drop = self.n_drop // self.n_step
-            sat_pos = bs_j.get_cart_position()
+            chnl_cap /= total_capacity # normalize
 
-            bs_obs.append([current_power, chnl_cap, connected_users, n_drop, sat_pos])
+            connected_users = len(ue_allocated_bitrates) - zero_bitrate_ue_len
+            connected_users = float(connected_users)
+            connected_users /= float(self.max_connected_user)
+            # print(ue_allocated_bitrates)
+            n_drop = self.n_drop / float(self.max_connected_user)
+            # discard z axis
+            _, theta, phi = bs_j.get_position() # in spherical coord.
+            # normalize
+            print("coord:", theta, phi)
+            theta = (float(theta) - 38.0) / 4.0
+            phi = (float(phi) - 23.7) / (39.6 - 23.7)
+            sat_pos = (theta, phi)
+
+            curr_obs = [current_power, chnl_cap, connected_users, n_drop, sat_pos]
+            print("\nobs:", curr_obs, "\n")
+            bs_obs.append(curr_obs)
 
         return bs_obs
     
@@ -148,10 +188,14 @@ class CACGymEnv(gym.Env):
 
         - `sat_pos`: 3D carteiran coord.
         """
-        min_x, max_x = min(self.base_cart[0], self.max_cart[0]), max(self.base_cart[0], self.max_cart[0])
-        min_y, max_y = min(self.base_cart[1], self.max_cart[1]), max(self.base_cart[1], self.max_cart[1])
-        
-        done = ~((min_x < sat_pos[0] and sat_pos[0] < max_x) and (min_y < sat_pos[1] and sat_pos[1] < max_y))
+        # sat_pos = (r, theta, phi) 
+        if (sat_pos[1] <= 38) or (sat_pos[1] >= 42) or (sat_pos[2] <= 23.7) or (sat_pos[2] >= 39.6):
+            done = True
+        else:
+            done = False
+        # min_x, max_x = min(self.base_cart[0], self.max_cart[0]), max(self.base_cart[0], self.max_cart[0])
+        # min_y, max_y = min(self.base_cart[1], self.max_cart[1]), max(self.base_cart[1], self.max_cart[1])
+        # done = ~((min_x < sat_pos[0] and sat_pos[0] < max_x) and (min_y < sat_pos[1] and sat_pos[1] < max_y))
             
         return done
 
@@ -174,57 +218,31 @@ class CACGymEnv(gym.Env):
             if (dr_ue == None) or (dr_ue < dr_desired_ue):
                 self.n_drop += 1
             else:
-                ue_class = self.env.class_list[ue]
-                dr_level = self.service_class[ue_class][1]
-                # extra reward from more data rate
-                self.qos_bonus += (dr_desired_ue - dr_ue) // (dr_level + 1)
+                pass
 
-        reward = self.a1 * (self.n_drop // self.n_step) + (1 - self.a1) * bs_j.get_power()
-        reward *= -1
 
         # disconnect all UEs that are not wanting to connect
         for ue_id in range(self.n_ue):
             if ue_id not in self.env.connection_advertisement:
                 self.env.ue_by_id(ue_id).disconnect()
 
-        # select next ue that will be scheduled (if all the UEs are scheduled yet, fast-forward steps in the environment)
-        if len(self.advertised_connections) > 0:
-            # make the env go 1 substep forward
-            self.env.step(substep = True)
-        else:
-            # while len(self.advertised_connections) == 0:
-            self.env.step()
-            self.advertised_connections = copy.deepcopy(self.env.connection_advertisement)
-            # if a UE is already connected to an AP, skip it and focus only on the unconnected UEs
-            for ue_id in self.advertised_connections:
-                if self.env.ue_by_id(ue_id).get_current_bs() != None:
-                    self.advertised_connections.remove(ue_id)
+        self.env.step()
         
-        # random pick next connecting users
-        if (self.n_next_connecting_ue <= len(self.advertised_connections)):
-            next_ue_ids = random.sample(self.advertised_connections, self.n_next_connecting_ue)
+        if (self.n_next_connecting_ue <= len(self.env.ue_list)):
+            next_ue_keys = random.sample(list(self.env.ue_list.keys()), self.n_next_connecting_ue)
+            next_ue_ids = {}
+            for ue in next_ue_keys:
+                next_ue_ids[ue] = self.env.ue_list[ue]
         else:
-            next_ue_ids = self.advertised_connections
+            next_ue_ids = self.env.ue_list
 
+        
         for ue in next_ue_ids:
-            # weird error
-            if ue not in self.advertised_connections:
-                continue
-
-            self.advertised_connections.remove(ue)
-
-            # re-select if `ue` not in `ue_list`
-            while (ue not in self.env.ue_list and len(self.advertised_connections) > 0):
-                ue = self.advertised_connections[-1]
-                self.advertised_connections.pop()
-            if (len(self.advertised_connections) == 0):
-                break
-
+            # self.advertised_connections.remove(ue)
             self.env.ue_by_id(ue).connect_bs(select_bs)
 
             # you may check `ue` position by enabling following line:
             # print(self.env.ue_by_id(ue).current_position)
-        
 
         # set to next power level
         bs_j.set_power_action(action)
@@ -232,9 +250,16 @@ class CACGymEnv(gym.Env):
         # after the step(), the user that have to appear in the next state is the next user, not the current user
         observation = self.observe()
 
-        # TODO: determine if satellite reaches boundary
+        # determine if satellite reaches boundary
+        connected_user = observation[select_bs][3]
         sat_pos = observation[select_bs][4]
         done = self.is_done(sat_pos)
+
+        reward = self.a1 * (self.n_drop // self.n_step) + (1 - self.a1) * bs_j.get_power() + self.a2 * connected_user
+        print()
+        print("reward term:", self.n_drop, bs_j.get_power())
+        print()
+        reward *= -1
 
         # nothing for `info` for now
         info = {}
@@ -242,15 +267,7 @@ class CACGymEnv(gym.Env):
         return observation, reward, done, info
 
     def reset(self):
-        self.init_env(self.x_lim, self.y_lim, self.terr_parm, self.sat_parm, self.n_ue, self.datarate)
-        # self.env.step()
-        # self.advertised_connections = copy.deepcopy(self.env.connection_advertisement)
-        # # step until at least one UE wants to connect
-        # while len(self.advertised_connections) == 0:
-        #     self.env.step()
-        #     self.advertised_connections = copy.deepcopy(self.env.connection_advertisement)
-        # ue_id = random.choice(self.advertised_connections)
-        # self.current_ue_id = ue_id
+        self.init_env(self.x_lim, self.y_lim, self.terr_parm, self.sat_parm, self.n_ue, self.datarate, self.max_power_level)
         # go back 1 time instant, so at the next step() the connection_advertisement list will not change
         observation = self.observe()
         # self.advertised_connections.remove(ue_id)

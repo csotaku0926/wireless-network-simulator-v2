@@ -136,11 +136,15 @@ class Environment:
         self.ue_list = {}
         self.class_list = {}
 
+        # print("CONNNNNNECTED:")
+        # print(connected_ue)
+        # print()
+
         for new_ue in connected_ue:
             class_id = self.determine_service()
             self.class_list[new_ue] = class_id
             service_datarate = self.service_class[class_id][0]
-
+            
             self.add_user(
                 UserEquipment(
                     self, new_ue, service_datarate, connected_ue[new_ue], speed = 0, direction = 0, _lambda_c=5, _lambda_d = 15

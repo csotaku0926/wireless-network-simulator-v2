@@ -5,7 +5,7 @@ from wns2.basestation.satellitebasestation import SatelliteBaseStation
 from wns2.gym.cac_env import CACGymEnv
 import numpy.random as random
 import logging
-import lexicographicqlearning
+import lexicographicqlearning as lexicographicqlearning
 import signal
 import numpy as np
 

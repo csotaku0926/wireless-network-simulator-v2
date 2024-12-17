@@ -9,7 +9,7 @@ import json
 import os
 import numpy as np
 
-from population import get_city_wikidata
+from .population import get_city_wikidata
 
 # [plot geo](https://max-coding.medium.com/getting-administrative-boundaries-from-open-street-map-osm-using-pyosmium-9f108c34f86)
 # make sure you put your own pbf data in "osm_data" folder !
@@ -389,8 +389,8 @@ def get_cart():
     oblast_gdf = oblast_gdf.drop_duplicates(subset='name:en', keep='last') 
     
     # get population from json
-    with open("pop_data/pop_oblast_dict.json") as f:
-        pop_oblast_dict = json.load(f) 
+    # with open("wireless-network-simulator-v2/wns2/environment/pop_data/pop_oblast_dict.json") as f:
+    #     pop_oblast_dict = json.load(f) 
     # if you want to regenerate users, enable `read_pop_from_qwiki` instead
     # missing "Zaporizhia Oblast": 1638462 (from wiki 2022)  
     # read_pop_from_qwiki(oblast_gdf)
@@ -450,7 +450,7 @@ def get_cart():
         json.dump(users_cart_dict, f)
 
     # plot
-    plot_gdf(gdf, plot_level, users_per_oblast_dict=users_per_oblast_dict)
+    # plot_gdf(gdf, plot_level, users_per_oblast_dict=users_per_oblast_dict)
 
     return base_cart, max_cart
 

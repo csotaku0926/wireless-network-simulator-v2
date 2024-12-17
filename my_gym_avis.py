@@ -4,11 +4,14 @@ from pkg_resources import load_entry_point
 from wns2.basestation.satellitebasestation import SatelliteBaseStation
 from wns2.gym.cac_env import CACGymEnv
 import logging
-import lexicographicqlearning
+import lexicographicqlearning as lexicographicqlearning
 import signal
 import numpy as np
-
+import os
+import torch
 from wns2.environment.osmnx_test import get_cart
+import time
+import matplotlib.pyplot as plt
 
 logger = logging.getLogger()
 logger.setLevel(level=logging.WARNING)
@@ -95,21 +98,20 @@ def run_my_episode(env:CACGymEnv, sat_parm:list, n_episode=1):
         curr_state = env.reset()
 
         # this loop should terminate once `done` is True
-        for j in range(10):
-            
-            print(curr_state)
+        for j in range(200):
             print()
+            print("--------------")
+            print(curr_state)
             print(f"{len(env.env.ue_list)} connecting users")
 
             # dummy action
-            action = j % env.n_action
+            action = j % env.n_action + 25
 
             new_state, reward, done, info = env.step(action)
             curr_state = new_state
 
             print(f"[iter {j}] reward: {reward}, done: {done}")
             
-
 
 """    
 - `required_data_rate`: base level of required data rate (in bps)
@@ -154,21 +156,7 @@ def determine_service():
 
     return class_id
 
-"""
-TODO
-1. get users in satellite coverage
-2. pick random N users to make request, N = covered area * 0.1
-3. each picked user determine its requested service (using above prob.)
-    - each service has specific requirements : data rate 
----
 
-power -> signal strength -> data rate 
-C = B * log(1 + SNR)
-
-connection (table XVI) 0.1 UE / m^2
-
-time unit?
-"""
 def main():
     """main function & defintion"""
     # get cart coordinates from real-world map data
@@ -192,97 +180,29 @@ def main():
         class_id = determine_service()
         class_list.append(class_id)
 
-    # we ignore terrestrial bs
-    '''terr_parm = [{"pos": (500, 500, 30),
-        "freq": 800,
-        "numerology": 1, 
-        "power": 20,
-        "gain": 16,
-        "loss": 3,
-        "bandwidth": 20,
-        "max_bitrate": 1000},
-        
-
-        #BS2
-        {"pos": (250, 300, 30),
-        "freq": 1700,
-        "numerology": 1, 
-        "power": 20,
-        "gain": 16,
-        "loss": 3,
-        "bandwidth": 40,
-        "max_bitrate": 1000},
-
-        #BS3
-        {"pos": (500, 125, 30),
-        "freq": 1900,
-        "numerology": 1, 
-        "power": 20,
-        "gain": 16,
-        "loss": 3,
-        "bandwidth": 40,
-        #15
-        "max_bitrate": 1000},
-
-        #BS4
-        {"pos": (750, 300, 30),
-        "freq": 2000,
-        "numerology": 1, 
-        "power": 20,
-        "gain": 16,
-        "loss": 3,
-        "bandwidth": 25,
-        "max_bitrate": 1000}
-    ] '''
     terr_parm = []
 
-    # satellite BS parameters
-    # sat_parm = [{"pos": (250, 500, 786000)}, {"pos": (50, 200, 35786000)}]
+    sat_parm = [{
+            # "pos": (3591576, 2500219, 0),            # (x, y, 0) 
+            "pos": (6971000, 38, 23.7), # (R+h, theta, phi) -> latitude: 90-theta, longitude: phi
+            "x_y_z": (3591576, 2500219, 0),
+            "altitude": 600000,                      # 300, 600, 1200 km
+            "angular_velocity": (0.0222, 0.0883)    # angular velocity
+            # "min_elevation_angle": 10,  
+        }]
 
-    # 51.591964, 23.719032 (left-top)     4:23:37   52, 23.7   38, 23.7
-    # 47.915873, 39.645767 (right-button) 4:26:38   48, 39.6   42, 39.6
-
-    # 
-    # 
-
-    sat_parm = [
-    {
-        # "pos": (6971000, 38, 23.7), # this coord do not stay in map
-        "pos": (6971000, 38, 33.7), # (R+h, theta, phi) -> latitude: 90-theta, longitude: phi
-        "altitude": 300000,         # 300, 600, 1200 km
-        "angular_velocity": (0.0222, -0.0883)  # angular velocity
-        # "min_elevation_angle": 10,  
-    }
-]
-    # coverage_x = r * cos(latitude) * cos(longitude)
-    # coverage_y = r * cos(latitude) * sin(longitude)
-    
     # define environment
     env = CACGymEnv(x_lim, y_lim, class_list, terr_parm, sat_parm,
                     base_cart=base_cart, max_cart=max_cart, datarate = 50, service_class=SERVICE_CLASS)
-    run_my_episode(env, sat_parm, 1)
-
-    # ue_0 = env.env.ue_list[0]print
-    # ue_1 = env.env.ue_list[1]
-
-    # # power action goes here
-    # action = 10
-    # bs_0 = env.env.bs_list[0]
-    # bs_0.set_power_action(action)
-    # _ = ue_1.connect_bs(0)
-    # # env.observe()
-    # actual_dr = ue_0.connect_bs(0)
-    # env.observe()
-    # print(f"set power to {action}:", actual_dr)
-
-    # action = 20
-    # bs_0.set_power_action(action)
-    # actual_dr = ue_0.connect_bs(0)
-    # print(env.observe())
-    # print(f"set power to {action}:", actual_dr)
 
     # define my learner
-    # learner = lexicographicqlearning.LexicographicQTableLearner(env, "CAC_Env", [0.075, 0.10, 0.15])
+    learner = lexicographicqlearning.LexicographicQTableLearner(env, "CAC_Env", [0.075, 0.10, 0.15])
+    # rr_return = learner.round_robin(time_interval=1, n_episode=5)
+    # print(rr_return)
+
+    qq_learning = learner.DQN(time_interval=1, n_episode=3000, model_name="my_dqn_model", model_path="saved_models", save_interval=100)
+    print(qq_learning)
+
 
 if __name__ == '__main__':
     main()

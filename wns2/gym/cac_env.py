@@ -75,6 +75,7 @@ class CACGymEnv(gym.Env):
             (note: should set power level higher, at least 10, to actually allocate resource to multi-users)
             - `avg channel capacity` : calculated by subtracting current allocated capacity from total capacity
             - `connected_users` : 
+            - `connected_users` : 
 
             """
             super(CACGymEnv, self).__init__()
@@ -113,6 +114,7 @@ class CACGymEnv(gym.Env):
             self.class_list = class_list
             self.n_ue = len(class_list)
             # pick randomly `self.n_next_connecting_ue` users for next step connection
+            self.n_next_connecting_ue = 200
             self.n_next_connecting_ue = 200
             self.service_class = service_class
 
@@ -234,6 +236,9 @@ class CACGymEnv(gym.Env):
             for ue in next_ue_keys:
                 next_ue_ids[ue] = self.env.ue_list[ue]
         else:
+            next_ue_ids = self.env.ue_list
+
+        
             next_ue_ids = self.env.ue_list
 
         

@@ -1,15 +1,12 @@
 import gym
 from gym import spaces
-from wns2.basestation.nrbasestation import NRBaseStation
 from wns2.basestation.satellitebasestation import SatelliteBaseStation
 from wns2.userequipment.userequipment import UserEquipment
 from wns2.environment.environment import Environment
-from wns2.renderer.renderer import CustomRenderer
+# from wns2.renderer.renderer import CustomRenderer
 import random
 import logging
 import numpy as np
-import copy
-import math
 import os
 import json
 
@@ -22,7 +19,7 @@ class CACGymEnv(gym.Env):
     def init_env(self, x_lim, y_lim, terr_parm, sat_parm, n_ue, datarate, max_datarate=None, max_symbols=None, service_class=None, max_power_action=10):
         """init `self.env` as Environment using inputs"""
         self.n_step = 1
-        self.env = Environment(x_lim, y_lim, renderer = CustomRenderer())
+        self.env = Environment(x_lim, y_lim)
         self.init_pos = []  # for reset method
         
         # random determine user position
@@ -37,12 +34,10 @@ class CACGymEnv(gym.Env):
 
             self.env.add_user(
                 UserEquipment(
-                    self.env, i, service_datarate, pos, speed = 0, direction = 0, _lambda_c=5, _lambda_d = 15
+                    self.env, i, service_datarate, pos, speed = 0, direction = 0, #_lambda_c=5, _lambda_d = 15
                 ))
             self.init_pos.append(pos)
 
-        for i in range(len(terr_parm)):
-            self.env.add_base_station(NRBaseStation(self.env, i, terr_parm[i]["pos"], terr_parm[i]["freq"], terr_parm[i]["bandwidth"], terr_parm[i]["numerology"], terr_parm[i]["max_bitrate"], terr_parm[i]["power"], terr_parm[i]["gain"], terr_parm[i]["loss"]))
         
         for i in range(len(sat_parm)):
             self.env.add_base_station(
@@ -93,8 +88,8 @@ class CACGymEnv(gym.Env):
             # set limits on states to control state space size
             self.max_power_level = 10
             self.max_connected_user = 100
-            self.bs_max_datarate = 10_000
-            self.bs_max_symbols = 10_000
+            self.bs_max_datarate = 10_000_000
+            self.bs_max_symbols = 10_000_000
 
             # RL stuff
             self.action_space = spaces.Discrete(self.n_action)
@@ -139,6 +134,7 @@ class CACGymEnv(gym.Env):
     def observe(self):
         """
         return list of current state for each BS
+        state: current_power, chnl_cap, connected_users, n_drop, sat_pos
 
         output shape: (`self.n_bs`, 5)
         """
@@ -190,14 +186,12 @@ class CACGymEnv(gym.Env):
 
         - `sat_pos`: 3D carteiran coord.
         """
-        # sat_pos = (r, theta, phi) 
-        if (sat_pos[1] <= 38) or (sat_pos[1] >= 42) or (sat_pos[2] <= 23.7) or (sat_pos[2] >= 39.6):
-            done = True
-        else:
-            done = False
-        # min_x, max_x = min(self.base_cart[0], self.max_cart[0]), max(self.base_cart[0], self.max_cart[0])
-        # min_y, max_y = min(self.base_cart[1], self.max_cart[1]), max(self.base_cart[1], self.max_cart[1])
-        # done = ~((min_x < sat_pos[0] and sat_pos[0] < max_x) and (min_y < sat_pos[1] and sat_pos[1] < max_y))
+        done = ((sat_pos[1] <= 38) or (sat_pos[1] >= 42) or (sat_pos[2] <= 23.7) or (sat_pos[2] >= 39.6))
+
+        # if (sat_pos[1] <= 38) or (sat_pos[1] >= 42) or (sat_pos[2] <= 23.7) or (sat_pos[2] >= 39.6):
+        #     done = True
+        # else:
+        #     done = False
             
         return done
 
@@ -219,8 +213,6 @@ class CACGymEnv(gym.Env):
             dr_desired_ue = self.env.ue_by_id(ue).data_rate
             if (dr_ue == None) or (dr_ue < dr_desired_ue):
                 self.n_drop += 1
-            else:
-                pass
 
 
         # disconnect all UEs that are not wanting to connect
@@ -239,11 +231,7 @@ class CACGymEnv(gym.Env):
             next_ue_ids = self.env.ue_list
 
         
-            next_ue_ids = self.env.ue_list
-
-        
         for ue in next_ue_ids:
-            # self.advertised_connections.remove(ue)
             self.env.ue_by_id(ue).connect_bs(select_bs)
 
             # you may check `ue` position by enabling following line:
@@ -260,7 +248,7 @@ class CACGymEnv(gym.Env):
         sat_pos = observation[select_bs][4]
         done = self.is_done(sat_pos)
 
-        reward = self.a1 * (self.n_drop // self.n_step) + (1 - self.a1) * bs_j.get_power() + self.a2 * connected_user
+        reward = self.a1 * (self.n_drop // self.n_step) + (1 - self.a1) * bs_j.get_power()
         print()
         print("reward term:", self.n_drop, bs_j.get_power())
         print()
@@ -275,11 +263,10 @@ class CACGymEnv(gym.Env):
         self.init_env(self.x_lim, self.y_lim, self.terr_parm, self.sat_parm, self.n_ue, self.datarate, self.max_power_level)
         # go back 1 time instant, so at the next step() the connection_advertisement list will not change
         observation = self.observe()
-        # self.advertised_connections.remove(ue_id)
         return observation
 
     def render(self, mode='human'):
         return self.env.render()
     
-    def close (self):
-        return
+    # def close (self):
+    #     return

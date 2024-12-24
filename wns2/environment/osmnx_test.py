@@ -389,11 +389,7 @@ def get_cart():
     oblast_gdf = oblast_gdf.drop_duplicates(subset='name:en', keep='last') 
     
     # get population from json
-<<<<<<< HEAD
-    # with open("wireless-network-simulator-v2/wns2/environment/pop_data/pop_oblast_dict.json") as f:
-=======
     # with open("pop_data/pop_oblast_dict.json") as f:
->>>>>>> dd66e9f029068b4a48220cbcef715da4ad9bede3
     #     pop_oblast_dict = json.load(f) 
     # if you want to regenerate users, enable `read_pop_from_qwiki` instead
     # missing "Zaporizhia Oblast": 1638462 (from wiki 2022)  

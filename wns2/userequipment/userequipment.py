@@ -187,13 +187,6 @@ class UserEquipment:
                 self.env.advertise_connection(self.ue_id)
     
     def step(self, substep = False):
-        # if not substep:
-<<<<<<< HEAD
-        #     # self.move()
-        #     self.advertise_connection()
-=======
-            # self.move()
->>>>>>> dd66e9f029068b4a48220cbcef715da4ad9bede3
         self.advertise_connection()
         return
     

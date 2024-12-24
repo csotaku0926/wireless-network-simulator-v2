@@ -136,10 +136,6 @@ class Environment:
         self.ue_list = {}
         self.class_list = {}
 
-        # print("CONNNNNNECTED:")
-        # print(connected_ue)
-        # print()
-
         for new_ue in connected_ue:
             class_id = self.determine_service()
             self.class_list[new_ue] = class_id
@@ -147,7 +143,7 @@ class Environment:
             
             self.add_user(
                 UserEquipment(
-                    self, new_ue, service_datarate, connected_ue[new_ue], speed = 0, direction = 0, _lambda_c=5, _lambda_d = 15
+                    self, new_ue, service_datarate, connected_ue[new_ue], speed = 0, direction = 0,# _lambda_c=5, _lambda_d = 15
                 ))
 
 
@@ -155,11 +151,11 @@ class Environment:
         # substep indicates if it is just a substep or it is a complete step
         # if substep, then the connection advertisement list should not be updated
         # nor the UEs should update their internal timers to decide if it is time to connect/disconnect
-        if not substep:
-            self.connection_advertisement.clear()
+        # if not substep:
+        #     self.connection_advertisement.clear()
 
         # update satellite position
-        for bs_id, bs in self.bs_list.items():
+        for _, bs in self.bs_list.items():
             if hasattr(bs, 'bs_type') and bs.bs_type == "sat":
                 bs.update_position()
                 self.update_user_pos(bs.connected_ues)

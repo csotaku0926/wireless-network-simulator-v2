@@ -20,12 +20,12 @@ class CostHataPathLoss(GenericPathLoss):
         ue_pos = ue.get_position()
         bs_pos = bs.get_position()
         bs_frequency = bs.get_carrier_frequency()
-        if bs_frequency > 2000 or bs_frequency < 150:
-            logging.warning("Cost Hata model is designed for carrier frequency in [150, 2000] MHz, check the results obtained before using them")    
-        if ue_pos[2] > 10 or ue_pos[2] < 1:
-            logging.warning("Cost Hata model is designed for UE height in [1, 10] m, check the results obtained before using them")
-        if bs_pos[2] > 200 or bs_pos[2] < 30:
-            logging.warning("Cost Hata model is designed for BS height in [30, 200] m, check the results obtained before using them")
+        # if bs_frequency > 2000 or bs_frequency < 150:
+        #     logging.warning("Cost Hata model is designed for carrier frequency in [150, 2000] MHz, check the results obtained before using them")    
+        # if ue_pos[2] > 10 or ue_pos[2] < 1:
+        #     logging.warning("Cost Hata model is designed for UE height in [1, 10] m, check the results obtained before using them")
+        # if bs_pos[2] > 200 or bs_pos[2] < 30:
+        #     logging.warning("Cost Hata model is designed for BS height in [30, 200] m, check the results obtained before using them")
         
         #compute distance first
         dist = math.sqrt((ue_pos[0]-bs_pos[0])**2 + (ue_pos[1]-bs_pos[1])**2 + (ue_pos[2] - bs_pos[2])**2)

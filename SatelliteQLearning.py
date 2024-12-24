@@ -39,7 +39,7 @@ class DQNetwork(nn.Module):
         return self.fc3(x)
 
 
-class LexicographicQTableLearner:
+class SatelliteQTableLearner:
 
     # based on: Martina Panfili, Antonio Pietrabissa, Guido Oddi & Vincenzo Suraci (2016) 
     # A lexicographic approach to constrained MDP admission control, International Journal of Control,

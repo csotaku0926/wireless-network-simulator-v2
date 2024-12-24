@@ -29,7 +29,7 @@ class SatelliteBaseStation(BaseStation):
         self.carrier_bandwidth = 220 # carrier bandwidth [MHz]
         self.carrier_frequency = 28.4 # frequency [Hz] = 28.4GHz
         
-        self.base_sat_eirp = 100 # lowest power of satellite
+        self.base_sat_eirp = 200 # lowest power of satellite
         self.power_action = 1 # power allocation action
         self.max_power_action = max_power_action # maximum value of action
         self.sat_eirp = self.base_sat_eirp * self.power_action #99 #62 #45.1  # satellite effective isotropic radiated power [dBW] 
@@ -148,7 +148,9 @@ class SatelliteBaseStation(BaseStation):
         self.coverage_radius = coverage_radius
 
         # Reset connected UEs
+        ## This dictionary will be used for user update
         self.connected_ues = {}
+
         # Determine which UEs are within the coverage radius
         for ue_id, ue_pos in ue_positions.items():
             ue_x, ue_y = ue_pos
@@ -220,6 +222,7 @@ class SatelliteBaseStation(BaseStation):
         
         # check if there is enough bitrate
         # rsrp = eirp - path_loss
+
         if self.total_bitrate - self.allocated_bitrate <= (r * N_blocks):
             dr = self.total_bitrate - self.allocated_bitrate
             N_blocks, r = self.compute_nsymb_SAT(dr, rsrp)
@@ -228,16 +231,20 @@ class SatelliteBaseStation(BaseStation):
         remain_symbol = self.total_symbols - self.frame_utilization
         requested_symbol = self.tb_header + N_blocks*64 + self.guard_space
 
+        # print(f"*[Satellite.connect]: {ue_id} require {requested_symbol} symbols")
         if remain_symbol <= requested_symbol:
             N_blocks = math.floor((remain_symbol - self.guard_space - self.tb_header)/64)
             # print(f"[bs.connect] {ue_id} : {self.tb_header + N_blocks*64 + self.guard_space}, remain: {self.total_symbols - self.frame_utilization}")
             # print(f"N block: {N_blocks}\n")
+            # print(f"*[Satellite.connect]: Warning, no more symbol for {ue_id} requesting {requested_symbol} symbols")
             if N_blocks <= 0: # we cannot allocate neither 1 block of 64 symbols
                 self.ue_allocation[ue_id] = 0
                 self.ue_bitrate_allocation[ue_id] = 0
                 return 0
 
         allocated_bitrate = r * N_blocks
+        # print(f"*[Satellite.connect]:{ue_id} allocate bitrate: {allocated_bitrate} (r={r}, N_block={N_blocks})") 
+        # print()
 
         if ue_id not in self.ue_allocation:
             self.ue_allocation[ue_id] = requested_symbol
@@ -249,7 +256,6 @@ class SatelliteBaseStation(BaseStation):
 
         if ue_id not in self.ue_bitrate_allocation:
             self.ue_bitrate_allocation[ue_id] = allocated_bitrate
-            # print(f"{ue_id} required bitrate: {allocated_bitrate}") 
             self.allocated_bitrate += allocated_bitrate
         else:
             self.allocated_bitrate -= self.ue_bitrate_allocation[ue_id]
@@ -298,6 +304,7 @@ class SatelliteBaseStation(BaseStation):
         r = r / self.frame_length # this is the data rate in [b/s] that is possible to obtains for a single symbol assigned every time frame
         r_64 = r * 64 # we can transmit in blocks of 64 symbols
         n_blocks = math.ceil(data_rate*1e6 / r_64)
+        # print(data_rate*1e6, r_64, n_blocks)
         return n_blocks, r_64/1e6 
     
     def get_usage_ratio(self):

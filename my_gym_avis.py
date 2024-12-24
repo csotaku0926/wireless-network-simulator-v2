@@ -1,14 +1,11 @@
 from json import load
-
-from pkg_resources import load_entry_point
 from wns2.basestation.satellitebasestation import SatelliteBaseStation
 from wns2.gym.cac_env import CACGymEnv
 import logging
-import lexicographicqlearning as lexicographicqlearning
+import SatelliteQLearning 
 import signal
 import numpy as np
 import os
-import torch
 from wns2.environment.osmnx_test import get_cart
 import time
 import matplotlib.pyplot as plt
@@ -196,7 +193,7 @@ def main():
                     base_cart=base_cart, max_cart=max_cart, datarate = 50, service_class=SERVICE_CLASS)
 
     # define my learner
-    learner = lexicographicqlearning.LexicographicQTableLearner(env, "CAC_Env", [0.075, 0.10, 0.15])
+    learner = SatelliteQLearning.SatelliteQTableLearner(env, "CAC_Env", [0.075, 0.10, 0.15])
     # rr_return = learner.round_robin(time_interval=1, n_episode=5)
     # print(rr_return)
 

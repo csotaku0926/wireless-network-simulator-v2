@@ -115,7 +115,6 @@ class SatelliteBaseStation(BaseStation):
         
         
         time_step = self.env.get_sampling_time()
-        time_step /= 100 # move too fast...
 
         # Update spherical coordinates
         theta = (theta + dtheta * time_step) 
@@ -225,13 +224,15 @@ class SatelliteBaseStation(BaseStation):
 
         if self.total_bitrate - self.allocated_bitrate <= (r * N_blocks):
             dr = self.total_bitrate - self.allocated_bitrate
+            dr = max(dr, 1)
             N_blocks, r = self.compute_nsymb_SAT(dr, rsrp)
 
         # check if required symbols more than enough
         remain_symbol = self.total_symbols - self.frame_utilization
         requested_symbol = self.tb_header + N_blocks*64 + self.guard_space
 
-        # print(f"*[Satellite.connect]: {ue_id} require {requested_symbol} symbols")
+        # should be enough symbols...
+        # print(f"*[Satellite.connect]: {ue_id} require {requested_symbol} symbols (remain: {remain_symbol})")
         if remain_symbol <= requested_symbol:
             N_blocks = math.floor((remain_symbol - self.guard_space - self.tb_header)/64)
             # print(f"[bs.connect] {ue_id} : {self.tb_header + N_blocks*64 + self.guard_space}, remain: {self.total_symbols - self.frame_utilization}")
@@ -303,7 +304,7 @@ class SatelliteBaseStation(BaseStation):
         r = self.carrier_bandwidth * 1e6 * math.log2(1 + self.compute_sinr(rsrp))
         r = r / self.frame_length # this is the data rate in [b/s] that is possible to obtains for a single symbol assigned every time frame
         r_64 = r * 64 # we can transmit in blocks of 64 symbols
-        n_blocks = math.ceil(data_rate*1e6 / r_64)
+        n_blocks = math.ceil(data_rate * 1e6 / r_64)
         # print(data_rate*1e6, r_64, n_blocks)
         return n_blocks, r_64/1e6 
     

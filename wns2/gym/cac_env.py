@@ -88,14 +88,13 @@ class CACGymEnv(gym.Env):
             # set limits on states to control state space size
             self.max_power_level = 10
             self.max_connected_user = 100
-            self.bs_max_datarate = 10_000_000
-            self.bs_max_symbols = 10_000_000
+            self.bs_max_datarate = 10_000
+            self.bs_max_symbols = 10_000
 
             # RL stuff
             self.action_space = spaces.Discrete(self.n_action)
             self.observation_space = spaces.Box(low=0.0, high=1.0, shape=(6, ), dtype=np.float32) # normalized obs space
-            self.a1 = 0.01
-            self.a2 = 0.1
+            self.a1 = 0.1
 
             # map bounadry
             self.x_lim = x_lim
@@ -134,7 +133,7 @@ class CACGymEnv(gym.Env):
     def observe(self):
         """
         return list of current state for each BS
-        state: current_power, chnl_cap, connected_users, n_drop, sat_pos
+        - state: current_power, chnl_cap, connected_users, n_drop, sat_pos (normalized)
 
         output shape: (`self.n_bs`, 5)
         """
@@ -169,13 +168,13 @@ class CACGymEnv(gym.Env):
             # discard z axis
             _, theta, phi = bs_j.get_position() # in spherical coord.
             # normalize
-            print("coord:", theta, phi)
+            # print("coord:", theta, phi)
             theta = (float(theta) - 38.0) / 4.0
             phi = (float(phi) - 23.7) / (39.6 - 23.7)
             sat_pos = (theta, phi)
 
             curr_obs = [current_power, chnl_cap, connected_users, n_drop, sat_pos]
-            print("\nobs:", curr_obs, "\n")
+            # print("\nobs:", curr_obs, "\n")
             bs_obs.append(curr_obs)
 
         return bs_obs
@@ -245,14 +244,14 @@ class CACGymEnv(gym.Env):
 
         # determine if satellite reaches boundary
         connected_user = observation[select_bs][3]
-        sat_pos = observation[select_bs][4]
+        sat_pos = bs_j.get_position()
         done = self.is_done(sat_pos)
 
         reward = self.a1 * (self.n_drop // self.n_step) + (1 - self.a1) * bs_j.get_power()
-        print()
-        print("reward term:", self.n_drop, bs_j.get_power())
-        print()
         reward *= -1
+        # print()
+        # print("reward term:", self.n_drop, bs_j.get_power())
+        # print()
 
         # nothing for `info` for now
         info = {}

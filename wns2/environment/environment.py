@@ -12,7 +12,7 @@ MIN_RSRP = -140
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.DEBUG)
 
 class Environment:
-    def __init__(self, h, l, sampling_time = 1, renderer = None):
+    def __init__(self, h, l, ue_data, sampling_time = 1, renderer = None):
         self.h = h
         self.l = l
         self.ue_list = {}
@@ -25,6 +25,15 @@ class Environment:
 
         self.drone_aps = []
         
+        self.ue_data = ue_data # from json file containing user coordinates
+
+        # create dict of user coordinates
+        self.ue_positions = {}
+        for region, ue_list in ue_data.items():
+            for i, ue_pos in enumerate(ue_list):
+                ue_id = f"{region}_{i}"  # Create a unique UE ID
+                self.ue_positions[ue_id] = ue_pos
+
         """    
         - `required_data_rate`: base level of required data rate (in bps)
         - `qos_level_data_rate`: every rate of this, obtain another qos level (in bps)

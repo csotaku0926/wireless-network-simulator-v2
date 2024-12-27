@@ -16,28 +16,27 @@ logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s
 class CACGymEnv(gym.Env):
     metadata = {'render.modes': ['human']}
 
-    def init_env(self, x_lim, y_lim, terr_parm, sat_parm, n_ue, datarate, max_datarate=None, max_symbols=None, service_class=None, max_power_action=10):
+    def init_env(self, x_lim, y_lim, terr_parm, sat_parm, n_ue, datarate, ue_data, max_datarate=None, max_symbols=None, service_class=None, max_power_action=10):
         """init `self.env` as Environment using inputs"""
         self.n_step = 1
-        self.env = Environment(x_lim, y_lim)
+        self.env = Environment(x_lim, y_lim, ue_data)
         self.init_pos = []  # for reset method
         
         # random determine user position
-        for i in range(0, n_ue):
-            pos = (0, 0, 1)
+        # for i in range(0, n_ue):
+        #     pos = (0, 0, 1)
             
-            service_datarate = datarate
-            if (service_class is not None):
-                class_id = self.class_list[i]
-                service_datarate = service_class[class_id][0] # a tuple containing base DR and level DR
-            self.datarate = service_datarate
+        #     service_datarate = datarate
+        #     if (service_class is not None):
+        #         class_id = self.class_list[i]
+        #         service_datarate = service_class[class_id][0] # a tuple containing base DR and level DR
+        #     self.datarate = service_datarate
 
-            self.env.add_user(
-                UserEquipment(
-                    self.env, i, service_datarate, pos, speed = 0, direction = 0, #_lambda_c=5, _lambda_d = 15
-                ))
-            self.init_pos.append(pos)
-
+        #     self.env.add_user(
+        #         UserEquipment(
+        #             self.env, i, service_datarate, pos, speed = 0, direction = 0, #_lambda_c=5, _lambda_d = 15
+        #         ))
+        #     self.init_pos.append(pos)
         
         for i in range(len(sat_parm)):
             self.env.add_base_station(
@@ -57,9 +56,11 @@ class CACGymEnv(gym.Env):
         self.sat_parm = sat_parm
         
 
-    def __init__(self, x_lim, y_lim, class_list, terr_parm, sat_parm, base_cart, max_cart, datarate = 25, service_class=None, n_action=3):
+    def __init__(self, x_lim, y_lim, class_list, terr_parm, sat_parm, base_cart, max_cart, datarate = 25, service_class=None, n_action=3,
+                 load_cart_file="../environment/pop_data/user_cart_dict_uniform.json"):
             """
             ### parameters
+            - `load_cart_file`: load user coordinate data from json file
             - `datarate`: this member value is filled in `CACGymEnv.init_env` with `service_datarate`
             - `service_class`: service class defined in `my_gym.py`
             - `n_action`: number of possible actions in action space
@@ -69,7 +70,6 @@ class CACGymEnv(gym.Env):
             - `power_level` : `self.current_power` stores current power level 
             (note: should set power level higher, at least 10, to actually allocate resource to multi-users)
             - `avg channel capacity` : calculated by subtracting current allocated capacity from total capacity
-            - `connected_users` : 
             - `connected_users` : 
 
             """
@@ -109,26 +109,28 @@ class CACGymEnv(gym.Env):
             self.n_ue = len(class_list)
             # pick randomly `self.n_next_connecting_ue` users for next step connection
             self.n_next_connecting_ue = 200
-            self.n_next_connecting_ue = 200
             self.service_class = service_class
 
- 
-            self.init_env(x_lim, y_lim, terr_parm, sat_parm, self.n_ue, datarate, 
-                          max_datarate=self.bs_max_datarate, max_symbols=self.bs_max_symbols, service_class=service_class, 
-                          max_power_action=self.max_power_level)
-            
             # pre-determine class type
+            self.load_cart_file = load_cart_file
             bs_dir_name = os.path.dirname(__file__)
-            read_json_path = os.path.join(bs_dir_name, "../environment/pop_data/user_cart_dict.json")
+            read_json_path = os.path.join(bs_dir_name, self.load_cart_file)
             with open(read_json_path, 'r') as file:
                 ue_data = json.load(file)
 
+            self.ue_data = ue_data
+
+            self.init_env(x_lim, y_lim, terr_parm, sat_parm, self.n_ue, datarate, ue_data,
+                          max_datarate=self.bs_max_datarate, max_symbols=self.bs_max_symbols, service_class=service_class, 
+                          max_power_action=self.max_power_level)
+            
             # UE list from satellite BS python file
             self.ue_class_type = {}
             for region, ue_list in ue_data.items():
                 for i in range(len(ue_list)):
                     ue_id = f"{region}_{i}"  # Create a unique UE ID (BS.py)
                     self.ue_class_type[ue_id] = self.env.determine_service()
+
 
     def observe(self):
         """
@@ -186,11 +188,6 @@ class CACGymEnv(gym.Env):
         - `sat_pos`: 3D carteiran coord.
         """
         done = ((sat_pos[1] <= 38) or (sat_pos[1] >= 42) or (sat_pos[2] <= 23.7) or (sat_pos[2] >= 39.6))
-
-        # if (sat_pos[1] <= 38) or (sat_pos[1] >= 42) or (sat_pos[2] <= 23.7) or (sat_pos[2] >= 39.6):
-        #     done = True
-        # else:
-        #     done = False
             
         return done
 
@@ -259,7 +256,7 @@ class CACGymEnv(gym.Env):
         return observation, reward, done, info
 
     def reset(self):
-        self.init_env(self.x_lim, self.y_lim, self.terr_parm, self.sat_parm, self.n_ue, self.datarate, self.max_power_level)
+        self.init_env(self.x_lim, self.y_lim, self.terr_parm, self.sat_parm, self.n_ue, self.datarate, self.ue_data, self.max_power_level)
         # go back 1 time instant, so at the next step() the connection_advertisement list will not change
         observation = self.observe()
         return observation

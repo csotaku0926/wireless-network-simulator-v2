@@ -90,17 +90,18 @@ class SatelliteBaseStation(BaseStation):
         """
         Update the position of the satellite using spherical coordinates.
         """
-        bs_dir_name = os.path.dirname(__file__)
-        read_json_path = os.path.join(bs_dir_name, "../environment/pop_data/user_cart_dict.json")
-        with open(read_json_path, 'r') as file:
-            ue_data = json.load(file)
+        # bs_dir_name = os.path.dirname(__file__)
+        # read_json_path = os.path.join(bs_dir_name, "../environment/pop_data/user_cart_dict.json")
+        # with open(read_json_path, 'r') as file:
+        #     ue_data = json.load(file)
 
         # Combine all UEs from all regions into a single dictionary
-        ue_positions = {}
-        for region, ue_list in ue_data.items():
-            for i, ue_pos in enumerate(ue_list):
-                ue_id = f"{region}_{i}"  # Create a unique UE ID
-                ue_positions[ue_id] = ue_pos
+        # ue_data = self.env.ue_data
+        # ue_positions = {}
+        # for region, ue_list in ue_data.items():
+        #     for i, ue_pos in enumerate(ue_list):
+        #         ue_id = f"{region}_{i}"  # Create a unique UE ID
+        #         ue_positions[ue_id] = ue_pos
         
         h = self.altitude
         r, theta, phi = self.position
@@ -151,7 +152,7 @@ class SatelliteBaseStation(BaseStation):
         self.connected_ues = {}
 
         # Determine which UEs are within the coverage radius
-        for ue_id, ue_pos in ue_positions.items():
+        for ue_id, ue_pos in self.env.ue_positions.items():
             ue_x, ue_y = ue_pos
             distance = math.sqrt((ue_x - x) ** 2 + (ue_y - y) ** 2)
             if distance <= coverage_radius:

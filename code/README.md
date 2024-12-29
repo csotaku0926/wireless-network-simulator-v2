@@ -11,7 +11,7 @@ pip install -r requirements.txt
 ```
 3. For training RL agents, run the following:
 ```
-python my_gym_avis.py
+python my_gym.py
 ```
 4. If you want to train agents on different maps, simply modify the loaded `file name` at line 194:
 ```

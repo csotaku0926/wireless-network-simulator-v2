@@ -1,21 +1,20 @@
 import os
-import platform
-from time import sleep, time
+from time import time
 import numpy as np
 import matplotlib.pyplot as plt
-import copy
 from tqdm import tqdm 
-
-RENDER_REFRESH_TIME = 0.02
-NON_RENDER_REFRESH_TIME = 0.008
-
-
 import torch
 import torch.nn as nn
 import torch.optim as optim
 import numpy as np
 import random
+import csv
 from collections import deque
+
+
+RENDER_REFRESH_TIME = 0.02
+NON_RENDER_REFRESH_TIME = 0.008
+
 
 class DQNetwork(nn.Module):
     def __init__(self, state_dim, action_dim):
@@ -35,7 +34,7 @@ class DQNetwork(nn.Module):
 
 class SatelliteQTableLearner:
 
-    def __init__(self, env, model_name, constraints):
+    def __init__(self, env, model_name, constraints, reward_csv_filename='episode_rewards.csv'):
         """ Constructor for SatelliteQTableLearner.
 
         Parameters: 
@@ -56,6 +55,13 @@ class SatelliteQTableLearner:
         self.steps_per_episode = 1000
         self.gamma = None
 
+        self.reward_csv_filename = reward_csv_filename
+
+        # write reward to csv
+        field_row = ["Episode", "Reward"]
+        with open(self.reward_csv_filename, 'a') as f:
+            csv_writer = csv.writer(f, delimiter=',', lineterminator='\n')
+            csv_writer.writerow(field_row)
 
     def save_dqn_model(self, policy_net, target_net, optimizer, model_name=None, model_path='saved_models'):
         """Save the DQN model parameters and optimizer state.
@@ -280,6 +286,11 @@ class SatelliteQTableLearner:
             accumulated_rewards.append(total_return)
             # Print accumulated reward for the current episode
             print(f"Episode {eps}, Accumulated Reward: {total_return}, Epsilon: {epsilon}")
+            
+            # append reward of episode in result csv file
+            with open(self.reward_csv_filename, 'a') as f:
+                csv_writer = csv.writer(f, delimiter=',', lineterminator='\n')
+                csv_writer.writerow([eps, total_return])
 
             # Save graph every 100 episodes
             if eps % 100 == 0 and eps != 0:

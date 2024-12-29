@@ -415,7 +415,6 @@ def get_cart():
         # users_per_oblast_dict = generate_users_uniform(df, pop_oblast_dict, user_per_oblast_json_filename)
         
     # Option 3: generate users in Poisson distribution
-    
     else:
         plot_level = 4
         # get boundry of whole country

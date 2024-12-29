@@ -190,7 +190,8 @@ def main():
 
     # define environment
     env = CACGymEnv(x_lim, y_lim, class_list, terr_parm, sat_parm,
-                    base_cart=base_cart, max_cart=max_cart, datarate = 50, service_class=SERVICE_CLASS)
+                    base_cart=base_cart, max_cart=max_cart, datarate = 50, service_class=SERVICE_CLASS,
+                    load_cart_file="../environment/pop_data/user_cart_dict.json")
 
     # define my learner
     learner = SatelliteQLearning.SatelliteQTableLearner(env, "CAC_Env", [0.075, 0.10, 0.15])

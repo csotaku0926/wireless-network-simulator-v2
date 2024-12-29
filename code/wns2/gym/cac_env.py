@@ -16,7 +16,8 @@ logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s
 class CACGymEnv(gym.Env):
     metadata = {'render.modes': ['human']}
 
-    def init_env(self, x_lim, y_lim, terr_parm, sat_parm, n_ue, datarate, ue_data, max_datarate=None, max_symbols=None, service_class=None, max_power_action=10):
+    def init_env(self, x_lim, y_lim, terr_parm, sat_parm, n_ue, datarate, ue_data, max_datarate=None, 
+                 max_symbols=None, service_class=None, max_power_action=10):
         """init `self.env` as Environment using inputs"""
         self.n_step = 1
         self.env = Environment(x_lim, y_lim, ue_data)
@@ -56,7 +57,8 @@ class CACGymEnv(gym.Env):
         self.sat_parm = sat_parm
         
 
-    def __init__(self, x_lim, y_lim, class_list, terr_parm, sat_parm, base_cart, max_cart, datarate = 25, service_class=None, n_action=3,
+    def __init__(self, x_lim, y_lim, class_list, terr_parm, sat_parm, base_cart, max_cart, datarate = 25, 
+                 service_class=None, n_action=3,
                  load_cart_file="../environment/pop_data/user_cart_dict_uniform.json"):
             """
             ### parameters
@@ -158,21 +160,21 @@ class CACGymEnv(gym.Env):
 
             # states
             current_power = bs_j.get_power() # return sat_eirp
-            current_power /= bs_j.get_max_power() # normalize
+            # current_power /= bs_j.get_max_power() # normalize
             chnl_cap = total_capacity - allocated_cap
-            chnl_cap /= total_capacity # normalize
+            # chnl_cap /= total_capacity # normalize
 
             connected_users = len(ue_allocated_bitrates) - zero_bitrate_ue_len
             connected_users = float(connected_users)
-            connected_users /= float(self.max_connected_user)
+            # connected_users /= float(self.max_connected_user)
             # print(ue_allocated_bitrates)
-            n_drop = self.n_drop / float(self.max_connected_user)
+            n_drop = self.n_drop #/ float(self.max_connected_user)
             # discard z axis
             _, theta, phi = bs_j.get_position() # in spherical coord.
             # normalize
             # print("coord:", theta, phi)
-            theta = (float(theta) - 38.0) / 4.0
-            phi = (float(phi) - 23.7) / (39.6 - 23.7)
+            theta = (float(theta) - 38.0) #/ 4.0
+            phi = (float(phi) - 23.7) #/ (39.6 - 23.7)
             sat_pos = (theta, phi)
 
             curr_obs = [current_power, chnl_cap, connected_users, n_drop, sat_pos]

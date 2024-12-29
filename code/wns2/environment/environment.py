@@ -34,6 +34,9 @@ class Environment:
                 ue_id = f"{region}_{i}"  # Create a unique UE ID
                 self.ue_positions[ue_id] = ue_pos
 
+        self.n_ue = len(self.ue_positions)
+        print(f"[env]: Total {self.n_ue} users")
+
         """    
         - `required_data_rate`: base level of required data rate (in bps)
         - `qos_level_data_rate`: every rate of this, obtain another qos level (in bps)
